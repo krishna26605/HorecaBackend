@@ -15,6 +15,17 @@ const escapeXML = (str) => {
     .replace(/'/g, "&apos;");
 };
 
+// Helper to format Date for Tally (YYYYMMDD)
+const formatTallyDate = (dateVal) => {
+  if (!dateVal) return "";
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return "";
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}${mm}${dd}`;
+};
+
 // Helper to build Customer XML for Tally
 function buildCustomerXML(customer) {
   const name = escapeXML(customer.name || customer.businessName || customer.phone || "Unknown Customer");
@@ -57,7 +68,7 @@ function buildCustomerXML(customer) {
               </NAME.LIST>
               <LANGUAGECODE> 1033</LANGUAGECODE>
             </LANGUAGENAME.LIST>
-            <PARENT>Sundry Debtors</PARENT>
+            <PARENT>${escapeXML(customer.customerGroup || "Sundry Debtors")}</PARENT>
             <ISBILLWISEON>Yes</ISBILLWISEON>
             <MAILINGNAME>${mailingName}</MAILINGNAME>
             ${addressXml}
@@ -68,6 +79,7 @@ function buildCustomerXML(customer) {
             ${email ? `<EMAIL>${email}</EMAIL>` : ''}
             <GSTREGISTRATIONTYPE>${gstNumber ? 'Regular' : 'Unregistered'}</GSTREGISTRATIONTYPE>
             ${gstNumber ? `<PARTYGSTIN>${gstNumber}</PARTYGSTIN>` : ''}
+            ${customer.gstEffectiveDate ? `<GSTAPPLICABLEDATE>${formatTallyDate(customer.gstEffectiveDate)}</GSTAPPLICABLEDATE>` : ''}
           </LEDGER>
         </TALLYMESSAGE>
       </REQUESTDATA>
@@ -166,7 +178,7 @@ export async function POST(request) {
     };
 
     const rawPassword = body.password ? body.password.trim() : generateSystemPassword();
-    const generatedUsername = body.username ? body.username.trim() : (name ? name.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12) : numericPhone);
+    const generatedUsername = email ? email.toLowerCase().trim() : (body.username ? body.username.trim() : (name ? name.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12) : numericPhone));
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(rawPassword, salt);
@@ -186,7 +198,13 @@ export async function POST(request) {
       location: lat != null && lng != null ? { type: "Point", coordinates: [lng, lat] } : undefined,
       businessName: body.businessName?.trim() || name?.trim() || null,
       gstNumber: body.gstNumber?.trim() || null,
+      gstEffectiveDate: body.gstEffectiveDate || null,
+      gstDocUrl: body.gstDocUrl || null,
       category: body.category || "C",
+      customerGroup: body.customerGroup || body.tallyGroup || "Sundry Debtors",
+      advanceBalance: Number(body.advanceAmount || 0),
+      advancePaymentMode: body.advancePaymentMode || null,
+      advancePaymentProofUrl: body.advancePaymentProofUrl || null,
       poMandatory: Boolean(body.poMandatory),
       licenseImage: body.licenseImage || null,
       customerType: customerType ?? null,
@@ -264,7 +282,8 @@ export async function POST(request) {
           password: rawPassword,
           gstNumber: isUrgCustomer ? "URG" : (newCustomer.gstNumber || "URG"),
           creditTerm: newCustomer.creditTerm || 0,
-          creditLimit: newCustomer.creditLimit || 0
+          creditLimit: newCustomer.creditLimit || 0,
+          customerId: newCustomer._id.toString()
         });
         console.log(`[Email Notification] Welcome email sent to ${newCustomer.email}`);
       }
@@ -279,6 +298,9 @@ export async function POST(request) {
 
     try {
       const xmlPayload = buildCustomerXML(newCustomer);
+      console.log(`[Tally Sync] Sending POST to Tally at URL: ${tallyUrl}`);
+      console.log(`[Tally Sync] Generated XML Payload:\n${xmlPayload}`);
+
       const tallyResponse = await fetch(tallyUrl, {
         method: 'POST',
         headers: {
@@ -288,9 +310,15 @@ export async function POST(request) {
         body: xmlPayload
       });
 
+      console.log(`[Tally Sync] Received response from Tally. Status: ${tallyResponse.status} ${tallyResponse.statusText}`);
+
       if (tallyResponse.ok) {
         const responseText = await tallyResponse.text();
+        console.log(`[Tally Sync] Raw Tally Response Text:\n${responseText}`);
+
         const parsed = parseTallyResponse(responseText);
+        console.log(`[Tally Sync] Parsed Response Success:`, parsed.success);
+
         if (parsed.success) {
           tallyCustomerSynced = true;
           console.log(`[Tally Sync] Customer synced successfully to Tally.`);

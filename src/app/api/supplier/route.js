@@ -7,6 +7,7 @@ import Brand from "@/lib/db/models/brand";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import Category from "@/lib/db/models/category";
+import { sendSupplierWelcomeEmail } from "@/lib/mail";
 // cloudinary server-side config - available if you want to process images server-side later
 import cloudinary from "cloudinary";
 cloudinary.v2.config({
@@ -370,6 +371,23 @@ export async function POST(request) {
 
     const supplier = new Supplier(supplierPayload);
     await supplier.save();
+
+    // 📧 Send Automated Welcome Email to Supplier
+    try {
+      if (supplier.email) {
+        await sendSupplierWelcomeEmail({
+          email: supplier.email,
+          name: supplier.ownerName || supplier.shopName,
+          businessName: supplier.businessName || supplier.shopName,
+          password: body.password,
+          gstNumber: supplier.gstNumber || "URG",
+          supplierId: supplier._id.toString()
+        });
+        console.log(`[Email Notification] Welcome email sent to supplier: ${supplier.email}`);
+      }
+    } catch (mailErr) {
+      console.error("[Email Notification Error] Failed to send supplier welcome email:", mailErr);
+    }
 
     // Sync Supplier Ledger to Tally Prime 9
     const tallyUrl = 'https://yummy-freebee-circular.ngrok-free.dev';

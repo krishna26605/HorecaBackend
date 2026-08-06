@@ -40,6 +40,10 @@ export async function POST(req) {
       return NextResponse.json({ success: false, error: "Invalid credentials" }, { status: 401 });
     }
 
+    if (user.isVerified === false) {
+      return NextResponse.json({ success: false, error: "Your account is pending approval by the Customer Care Team." }, { status: 403 });
+    }
+
     // Check if user has a password set (legacy users might only have OTP)
     if (!user.password) {
       return NextResponse.json({ success: false, error: "Please use OTP to login or reset your password." }, { status: 401 });

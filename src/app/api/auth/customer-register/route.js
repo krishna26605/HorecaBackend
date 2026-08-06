@@ -19,6 +19,17 @@ const escapeXML = (str) => {
     .replace(/'/g, "&apos;");
 };
 
+// Helper to format Date for Tally (YYYYMMDD)
+const formatTallyDate = (dateVal) => {
+  if (!dateVal) return "";
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return "";
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}${mm}${dd}`;
+};
+
 // Helper to build Customer XML for Tally
 function buildCustomerXML(customer) {
   const name = escapeXML(customer.name || customer.businessName || customer.phone || "Unknown Customer");
@@ -61,7 +72,7 @@ function buildCustomerXML(customer) {
               </NAME.LIST>
               <LANGUAGECODE> 1033</LANGUAGECODE>
             </LANGUAGENAME.LIST>
-            <PARENT>Sundry Debtors</PARENT>
+            <PARENT>${escapeXML(customer.customerGroup || "Sundry Debtors")}</PARENT>
             <ISBILLWISEON>Yes</ISBILLWISEON>
             <MAILINGNAME>${mailingName}</MAILINGNAME>
             ${addressXml}
@@ -72,6 +83,7 @@ function buildCustomerXML(customer) {
             ${email ? `<EMAIL>${email}</EMAIL>` : ''}
             <GSTREGISTRATIONTYPE>${gstNumber ? 'Regular' : 'Unregistered'}</GSTREGISTRATIONTYPE>
             ${gstNumber ? `<PARTYGSTIN>${gstNumber}</PARTYGSTIN>` : ''}
+            ${customer.gstEffectiveDate ? `<GSTAPPLICABLEDATE>${formatTallyDate(customer.gstEffectiveDate)}</GSTAPPLICABLEDATE>` : ''}
           </LEDGER>
         </TALLYMESSAGE>
       </REQUESTDATA>
@@ -107,15 +119,18 @@ export async function POST(req) {
   try {
     const body = await req.json();
     const {
-      username, password, email, phone, businessName, gstNumber, panNumber,
+      password, email, phone, businessName, gstNumber, panNumber,
       licenseImage, name, locations, hasMultipleOutlets, outlets, supplierId, category, customerType, department, poMandatory,
       creditTerm, creditLimit, urcDocUrl, assignedRoute, routeName, routeCode,
       lat, lng, isContractBased, contract, contractType, contractDocumentUrl, contractStartDate, contractExpiryDate, contractNotes
     } = body;
 
-    if (!username || username.length < 3) {
-      return NextResponse.json({ success: false, error: "Username must be at least 3 characters" }, { status: 400 });
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email)) {
+      return NextResponse.json({ success: false, error: "Invalid email address" }, { status: 400 });
     }
+
+    const username = email.toLowerCase().trim();
 
     if (!category || !['A', 'B', 'C'].includes(category)) {
       return NextResponse.json({ success: false, error: "Valid customer tier (A, B, C) is required" }, { status: 400 });
@@ -141,10 +156,6 @@ export async function POST(req) {
       return NextResponse.json({ success: false, error: "Password must be at least 8 characters if entered manually" }, { status: 400 });
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email || !emailRegex.test(email)) {
-      return NextResponse.json({ success: false, error: "Invalid email address" }, { status: 400 });
-    }
 
     if (!phone || phone.replace(/\D/g, "").length < 10) {
       return NextResponse.json({ success: false, error: "Invalid phone number" }, { status: 400 });
@@ -230,6 +241,7 @@ export async function POST(req) {
 
     // Create user
     const newUser = await Customer.create({
+      isVerified: !!(body.preApproved || body.isVerified),
       username,
       password: hashedPassword,
       email: email.toLowerCase(),
@@ -257,12 +269,18 @@ export async function POST(req) {
       })) : [],
       businessName: businessName.trim(),
       gstNumber: gstNumber || null,
+      gstEffectiveDate: body.gstEffectiveDate || null,
+      gstDocUrl: body.gstDocUrl || null,
       panNumber: panNumber ? panNumber.trim().toUpperCase() : null,
       assignedRoute: assignedRoute || null,
       routeName: routeName || null,
       routeCode: routeCode || null,
       licenseImage,
       category,
+      customerGroup: body.customerGroup || body.tallyGroup || "Sundry Debtors",
+      advanceBalance: Number(body.advanceAmount || 0),
+      advancePaymentMode: body.advancePaymentMode || null,
+      advancePaymentProofUrl: body.advancePaymentProofUrl || null,
       customerType: customerType || null,
       department: department || null,
       poMandatory: poMandatory || false,
@@ -298,39 +316,44 @@ export async function POST(req) {
       req
     });
 
-    // 📧 Send Automated Welcome Email to Customer (Credentials, URG/GST Notice & Credit Terms)
+    // 📧 Send Automated Welcome Email to Customer if Pre-Approved (SCM onboarding)
     let mailResult = null;
-    try {
-      if (email) {
-        const isUrgCustomer = body.isUrg || gstNumber === "URG" || gstNumber === "Unregistered" || !gstNumber;
-        console.log(`[Email Dispatcher] Attempting welcome email for ${email} (URG: ${isUrgCustomer})`);
-        
-        mailResult = await sendCustomerWelcomeEmail({
-          email: email.trim(),
-          name: name ? name.trim() : businessName.trim(),
-          businessName: businessName.trim(),
-          username: username.trim(),
-          password: finalPassword,
-          gstNumber: isUrgCustomer ? "URG" : (gstNumber ? gstNumber.trim().toUpperCase() : "URG"),
-          creditTerm: Number(creditTerm || 0),
-          creditLimit: Number(creditLimit || 0)
-        });
+    if (newUser.isVerified) {
+      try {
+        if (email) {
+          const isUrgCustomer = body.isUrg || gstNumber === "URG" || gstNumber === "Unregistered" || !gstNumber;
+          console.log(`[Email Dispatcher] Attempting welcome email for ${email} (URG: ${isUrgCustomer})`);
+          
+          mailResult = await sendCustomerWelcomeEmail({
+            email: email.trim(),
+            name: name ? name.trim() : businessName.trim(),
+            businessName: businessName.trim(),
+            username: username.trim(),
+            password: finalPassword,
+            gstNumber: isUrgCustomer ? "URG" : (gstNumber ? gstNumber.trim().toUpperCase() : "URG"),
+            creditTerm: Number(creditTerm || 0),
+            creditLimit: Number(creditLimit || 0),
+            customerId: newUser._id.toString()
+          });
 
-        console.log(`[Email Notification Result] Success: ${mailResult?.success} | MessageId: ${mailResult?.messageId} | Error: ${mailResult?.error}`);
-        
-        await logger({
-          level: mailResult?.success ? 'info' : 'error',
-          message: mailResult?.success ? `Welcome email sent to ${email}` : `Failed to send welcome email to ${email}: ${mailResult?.error}`,
-          action: 'CUSTOMER_WELCOME_EMAIL',
-          userId: newUser._id,
-          userModel: 'Customer',
-          metadata: { email, mailResult },
-          req
-        });
+          console.log(`[Email Notification Result] Success: ${mailResult?.success} | MessageId: ${mailResult?.messageId} | Error: ${mailResult?.error}`);
+          
+          await logger({
+            level: mailResult?.success ? 'info' : 'error',
+            message: mailResult?.success ? `Welcome email sent to ${email}` : `Failed to send welcome email to ${email}: ${mailResult?.error}`,
+            action: 'CUSTOMER_WELCOME_EMAIL',
+            userId: newUser._id,
+            userModel: 'Customer',
+            metadata: { email, mailResult },
+            req
+          });
+        }
+      } catch (mailErr) {
+        console.error("[Email Notification Error] Failed to send welcome email:", mailErr);
+        mailResult = { success: false, error: mailErr.message || String(mailErr) };
       }
-    } catch (mailErr) {
-      console.error("[Email Notification Error] Failed to send welcome email:", mailErr);
-      mailResult = { success: false, error: mailErr.message || String(mailErr) };
+    } else {
+      console.log(`[Email Dispatcher] Welcome email skipped for ${email} (Awaiting CCT approval)`);
     }
 
     // Create JWT
@@ -347,6 +370,9 @@ export async function POST(req) {
 
     try {
       const xmlPayload = buildCustomerXML(newUser);
+      console.log(`[Tally Sync Register] Sending POST to Tally at URL: ${tallyUrl}`);
+      console.log(`[Tally Sync Register] Generated XML Payload:\n${xmlPayload}`);
+
       const tallyResponse = await fetch(tallyUrl, {
         method: 'POST',
         headers: {
@@ -356,9 +382,15 @@ export async function POST(req) {
         body: xmlPayload
       });
 
+      console.log(`[Tally Sync Register] Received response from Tally. Status: ${tallyResponse.status} ${tallyResponse.statusText}`);
+
       if (tallyResponse.ok) {
         const responseText = await tallyResponse.text();
+        console.log(`[Tally Sync Register] Raw Tally Response Text:\n${responseText}`);
+
         const parsed = parseTallyResponse(responseText);
+        console.log(`[Tally Sync Register] Parsed Response Success:`, parsed.success);
+
         if (parsed.success) {
           tallyCustomerSynced = true;
           console.log(`[Tally Sync] Customer synced successfully to Tally.`);

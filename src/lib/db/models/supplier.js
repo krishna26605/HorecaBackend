@@ -30,9 +30,9 @@ const supplierSchema = new Schema(
     role: { type: String, default: "supplier" },
 
     businessType: {
-      type: String,
-      enum: ["farmer", "wholesaler", "retailer", "processor", "other", "Agriculture"]
+      type: String
     },
+    mathadiApplicable: { type: String, default: "No" },
     shopName: { type: String, trim: true },
     gstNumber: {
       type: String,

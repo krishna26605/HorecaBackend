@@ -39,6 +39,17 @@ const CustomerSchema = new mongoose.Schema(
       default: null
     },
 
+    gstEffectiveDate: {
+      type: Date,
+      default: null
+    },
+
+    gstDocUrl: {
+      type: String,
+      default: null,
+      trim: true
+    },
+
     panNumber: {
       type: String,
       trim: true,
@@ -117,6 +128,11 @@ const CustomerSchema = new mongoose.Schema(
       type: String,
       default: null
     },
+    customerGroup: {
+      type: String,
+      default: "Sundry Debtors",
+      trim: true
+    },
     lat: { type: Number, default: null },
     lng: { type: Number, default: null },
 
@@ -158,6 +174,18 @@ const CustomerSchema = new mongoose.Schema(
     advanceBalance: {
       type: Number,
       default: 0
+    },
+
+    advancePaymentMode: {
+      type: String,
+      default: null,
+      trim: true
+    },
+
+    advancePaymentProofUrl: {
+      type: String,
+      default: null,
+      trim: true
     },
 
     creditTerm: {
