@@ -184,7 +184,7 @@ const productSchema = new Schema({
     C: { type: Number, default: 0 }
   },
   discountStartDate: { type: Date },
-  discountEndDate: { type: Date },
+  moq: { type: Number, default: 0 },
   poTemplateId: {
     type: Schema.Types.ObjectId,
     ref: "POTemplate"

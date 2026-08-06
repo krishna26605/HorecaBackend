@@ -440,6 +440,7 @@ export async function POST(request) {
             price: Number(prodData.basePrice) || 0,
             basePrice: Number(prodData.basePrice) || 0,
             assuredMargin: Number(prodData.assuredMargin) || 0,
+            moq: Number(prodData.moq) || 0,
             images: prodData.image
               ? [{ url: prodData.image, publicId: `prod_${Date.now()}` }]
               : [{ url: "https://res.cloudinary.com/dqfum2awz/image/upload/v1717900000/placeholder.png", publicId: "placeholder" }],

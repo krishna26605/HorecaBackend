@@ -6,6 +6,60 @@ import Category from "@/lib/db/models/category";
 export async function GET(request) {
   await dbConnect();
   try {
+    // 1. Sync Stock Categories from Tally Prime 9 into MongoDB
+    try {
+      const tallyUrl = process.env.TALLY_URL || 'https://yummy-freebee-circular.ngrok-free.dev';
+      const xmlPayload = `<ENVELOPE>
+  <HEADER>
+    <VERSION>1</VERSION>
+    <TALLYREQUEST>EXPORT</TALLYREQUEST>
+    <TYPE>COLLECTION</TYPE>
+    <ID>Stock Category</ID>
+  </HEADER>
+  <BODY>
+    <DESC>
+      <STATICVARIABLES>
+        <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+      </STATICVARIABLES>
+      <FETCH>NAME,PARENT</FETCH>
+    </DESC>
+  </BODY>
+</ENVELOPE>`;
+
+      const tallyRes = await fetch(tallyUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/xml", "ngrok-skip-browser-warning": "true" },
+        body: xmlPayload
+      });
+
+      if (tallyRes.ok) {
+        const xmlText = await tallyRes.text();
+        const matches = xmlText.match(/<STOCKCATEGORY NAME="([^"]+)"/g) || [];
+        const names = matches.map(m => m.replace('<STOCKCATEGORY NAME="', '').replace('"', '').trim());
+
+        const validNames = names.filter(n => n && n !== "Primary");
+        for (const catName of validNames) {
+          await Category.findOneAndUpdate(
+            { name: catName },
+            { $set: { name: catName, isActive: true } },
+            { upsert: true, new: true }
+          );
+          await Brand.findOneAndUpdate(
+            { name: catName },
+            { $set: { name: catName, isActive: true } },
+            { upsert: true, new: true }
+          );
+        }
+        if (validNames.length > 0) {
+          await Category.deleteMany({ name: { $nin: validNames } });
+          await Brand.deleteMany({ name: { $nin: validNames } });
+        }
+      }
+    } catch (tallyErr) {
+      console.warn("Tally Stock Category sync error in GET /api/categories:", tallyErr.message);
+    }
+
     const url = new URL(request.url);
     const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
     const limit = Math.min(100, parseInt(url.searchParams.get("limit") || "50", 10));

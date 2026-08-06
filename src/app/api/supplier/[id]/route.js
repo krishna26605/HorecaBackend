@@ -286,6 +286,7 @@ export async function PATCH(request, { params }) {
           unit: p.uom || "Kg",
           basePrice: Number(p.basePrice || 0),
           assuredMargin: Number(p.assuredMargin || 0),
+          moq: Number(p.moq || 0),
           price: Number(p.basePrice || 0) + (Number(p.basePrice || 0) * Number(p.assuredMargin || 0) / 100),
           poTemplateId: p.poTemplateId || undefined,
           claimTemplateId: p.claimTemplateId || undefined,

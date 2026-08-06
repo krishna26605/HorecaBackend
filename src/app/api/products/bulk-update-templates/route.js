@@ -13,12 +13,17 @@ export async function PATCH(req) {
     }
 
     // Perform bulk update
-    const bulkOps = updates.map(update => ({
-      updateOne: {
-        filter: { _id: update.id },
-        update: { $set: { poTemplateId: update.poTemplateId || null } }
-      }
-    }));
+    const bulkOps = updates.map(update => {
+      const updateData = {};
+      if (update.poTemplateId !== undefined) updateData.poTemplateId = update.poTemplateId || null;
+      if (update.moq !== undefined) updateData.moq = parseFloat(update.moq) || 0;
+      return {
+        updateOne: {
+          filter: { _id: update.id },
+          update: { $set: updateData }
+        }
+      };
+    });
 
     await Product.bulkWrite(bulkOps);
 

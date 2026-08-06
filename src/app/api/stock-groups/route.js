@@ -73,6 +73,54 @@ function parseTallyResponse(xmlString) {
 export async function GET(request) {
   await dbConnect();
   try {
+    // 1. Sync all Stock Groups from Tally Prime 9 into MongoDB
+    try {
+      const tallyUrl = process.env.TALLY_URL || 'https://yummy-freebee-circular.ngrok-free.dev';
+      const xmlPayload = `<ENVELOPE>
+  <HEADER>
+    <VERSION>1</VERSION>
+    <TALLYREQUEST>EXPORT</TALLYREQUEST>
+    <TYPE>COLLECTION</TYPE>
+    <ID>Stock Group</ID>
+  </HEADER>
+  <BODY>
+    <DESC>
+      <STATICVARIABLES>
+        <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+      </STATICVARIABLES>
+      <FETCH>NAME,PARENT</FETCH>
+    </DESC>
+  </BODY>
+</ENVELOPE>`;
+
+      const tallyRes = await fetch(tallyUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/xml", "ngrok-skip-browser-warning": "true" },
+        body: xmlPayload
+      });
+
+      if (tallyRes.ok) {
+        const xmlText = await tallyRes.text();
+        const matches = xmlText.match(/<STOCKGROUP NAME="([^"]+)"/g) || [];
+        const names = matches.map(m => m.replace('<STOCKGROUP NAME="', '').replace('"', '').trim());
+
+        const validNames = names.filter(n => n && n !== "Primary");
+        for (const groupName of validNames) {
+          await StockGroup.findOneAndUpdate(
+            { name: groupName },
+            { $set: { name: groupName, isActive: true } },
+            { upsert: true, new: true }
+          );
+        }
+        if (validNames.length > 0) {
+          await StockGroup.deleteMany({ name: { $nin: validNames } });
+        }
+      }
+    } catch (tallyErr) {
+      console.warn("Tally Stock Group sync error in GET /api/stock-groups:", tallyErr.message);
+    }
+
     const list = await StockGroup.find().sort("-createdAt").populate("parent").lean();
     return NextResponse.json({ success: true, data: { items: list } });
   } catch (err) {
