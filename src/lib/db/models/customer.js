@@ -94,6 +94,40 @@ const CustomerSchema = new mongoose.Schema(
       default: false
     },
 
+    source: {
+      type: String,
+      default: "Self-Registered",
+      trim: true
+    },
+
+    departmentContacts: {
+      art: {
+        name: { type: String, trim: true, default: null },
+        phone: { type: String, trim: true, default: null },
+        email: { type: String, trim: true, default: null }
+      },
+      act: {
+        name: { type: String, trim: true, default: null },
+        phone: { type: String, trim: true, default: null },
+        email: { type: String, trim: true, default: null }
+      },
+      odt: {
+        name: { type: String, trim: true, default: null },
+        phone: { type: String, trim: true, default: null },
+        email: { type: String, trim: true, default: null }
+      },
+      scm: {
+        name: { type: String, trim: true, default: null },
+        phone: { type: String, trim: true, default: null },
+        email: { type: String, trim: true, default: null }
+      },
+      routePlanner: {
+        name: { type: String, trim: true, default: null },
+        phone: { type: String, trim: true, default: null },
+        email: { type: String, trim: true, default: null }
+      }
+    },
+
     outlets: [{
       outletName: { type: String, trim: true },
       address: { type: String, trim: true },
@@ -102,6 +136,10 @@ const CustomerSchema = new mongoose.Schema(
       pincode: { type: String, trim: true },
       contactPerson: { type: String, trim: true, default: null },
       contactPhone: { type: String, trim: true, default: null },
+      contactEmail: { type: String, trim: true, default: null },
+      assignedRoute: { type: mongoose.Schema.Types.ObjectId, ref: "RouteMaster", default: null },
+      routeName: { type: String, trim: true, default: null },
+      routeCode: { type: String, trim: true, default: null },
       lat: { type: Number, default: null },
       lng: { type: Number, default: null }
     }],
@@ -114,6 +152,10 @@ const CustomerSchema = new mongoose.Schema(
       pincode: { type: String, trim: true },
       contactPerson: { type: String, trim: true, default: null },
       contactPhone: { type: String, trim: true, default: null },
+      contactEmail: { type: String, trim: true, default: null },
+      assignedRoute: { type: mongoose.Schema.Types.ObjectId, ref: "RouteMaster", default: null },
+      routeName: { type: String, trim: true, default: null },
+      routeCode: { type: String, trim: true, default: null },
       lat: { type: Number, default: null },
       lng: { type: Number, default: null },
       isPrimary: { type: Boolean, default: false }
@@ -174,6 +216,11 @@ const CustomerSchema = new mongoose.Schema(
     advanceBalance: {
       type: Number,
       default: 0
+    },
+
+    hasPaidAdvance: {
+      type: Boolean,
+      default: false
     },
 
     advancePaymentMode: {

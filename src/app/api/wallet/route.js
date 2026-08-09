@@ -36,7 +36,7 @@ export async function GET(req) {
     // 1) DYNAMIC BALANCE & CLEANUP (Self-Healing Ledger)
     // We only count settlements for orders that STILL EXIST in the database
     // [FIX]: Search both top-level supplier AND items-level supplier
-    const allOrders = await Order.find({ 
+    const allOrders = await Order.find({
       $or: [
         { supplier: supplierId },
         { "items.supplier": supplierId }
@@ -47,43 +47,43 @@ export async function GET(req) {
     // 🏆 [SELF-HEALING 3.0]: INDESTRUCTIBLE SETTLEMENT (Auto-Release Stuck Points)
     // Scan for orders that are Delivered + Paid but missing a ledger transaction
     const potentialSettlements = await Order.find({
-       $or: [ { supplier: supplierId }, { "items.supplier": supplierId } ],
-       status: "delivered",
-       "payment.status": "paid"
+      $or: [{ supplier: supplierId }, { "items.supplier": supplierId }],
+      status: "delivered",
+      "payment.status": "paid"
     }).lean();
 
     for (const order of potentialSettlements) {
-       // Isolate the specific supplier's portion
-       const supplierPortion = (order.items || [])
-          .filter(it => it.supplier?.toString() === userId)
-          .reduce((sum, it) => sum + (it.totalPrice || 0), 0);
+      // Isolate the specific supplier's portion
+      const supplierPortion = (order.items || [])
+        .filter(it => it.supplier?.toString() === userId)
+        .reduce((sum, it) => sum + (it.totalPrice || 0), 0);
 
-       if (supplierPortion > 0) {
-          const settlementTx = await Transaction.findOne({ 
-             userId: supplierId, 
-             "metadata.orderId": order._id,
-             type: "order_settlement" 
+      if (supplierPortion > 0) {
+        const settlementTx = await Transaction.findOne({
+          userId: supplierId,
+          "metadata.orderId": order._id,
+          type: "order_settlement"
+        });
+
+        if (!settlementTx) {
+          console.log(`[FIREWALL RECOVERY] Releasing stuck ₹${supplierPortion} for Order ${order.orderNumber}`);
+          const newTx = new Transaction({
+            userId: supplierId,
+            amount: supplierPortion,
+            type: "order_settlement",
+            method: "wallet",
+            status: "completed",
+            description: `Auto-Recovered Settlement: ${order.orderNumber}`,
+            metadata: { orderId: order._id, orderNumber: order.orderNumber }
           });
-
-          if (!settlementTx) {
-             console.log(`[FIREWALL RECOVERY] Releasing stuck ₹${supplierPortion} for Order ${order.orderNumber}`);
-             const newTx = new Transaction({
-                userId: supplierId,
-                amount: supplierPortion,
-                type: "order_settlement",
-                method: "wallet",
-                status: "completed",
-                description: `Auto-Recovered Settlement: ${order.orderNumber}`,
-                metadata: { orderId: order._id, orderNumber: order.orderNumber }
-             });
-             await newTx.save();
-          }
-       }
+          await newTx.save();
+        }
+      }
     }
 
     const ledger = await Transaction.aggregate([
-      { 
-        $match: { 
+      {
+        $match: {
           userId: supplierId,
           status: 'completed',
           // SAFETY: If it's an order settlement, the order must still exist
@@ -91,15 +91,15 @@ export async function GET(req) {
             { type: { $ne: "order_settlement" } },
             { "metadata.orderId": { $in: validOrderIds } }
           ]
-        } 
+        }
       },
       {
         $group: {
           _id: null,
-          totalInflow: { 
+          totalInflow: {
             $sum: { $cond: [{ $in: ["$type", ["deposit", "refund", "transfer", "order_settlement", "adjustment"]] }, { $abs: "$amount" }, 0] }
           },
-          totalOutflow: { 
+          totalOutflow: {
             $sum: { $cond: [{ $in: ["$type", ["withdrawal", "order_payment"]] }, { $abs: "$amount" }, 0] }
           }
         }
@@ -110,7 +110,7 @@ export async function GET(req) {
     const dynamicBalance = Math.max(0, globalSum.totalInflow - globalSum.totalOutflow);
 
     // Filter transactions list for the UI (only show settlements for existing orders)
-    const transactions = await Transaction.find({ 
+    const transactions = await Transaction.find({
       userId: supplierId,
       $or: [
         { type: { $ne: "order_settlement" } },
@@ -124,45 +124,45 @@ export async function GET(req) {
     // Realized Savings = Total Business Volume (Delivered)
     // Escrowed Points = Promised Business Volume (Pending/Shipped)
     const orderMetrics = await Order.aggregate([
-      { 
-        $match: { 
+      {
+        $match: {
           $or: [
             { supplier: supplierId },
             { "items.supplier": supplierId }
           ]
-        } 
+        }
       },
       { $unwind: "$items" },
       {
         $group: {
           _id: null,
-          deliveredTotal: { 
-            $sum: { 
-               $cond: [
-                 { 
-                   $and: [
-                     { $eq: ["$items.supplier", supplierId] },
-                     { $eq: ["$status", "delivered"] }
-                   ]
-                 },
-                 "$items.totalPrice", 
-                 0
-               ]
-            } 
+          deliveredTotal: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$items.supplier", supplierId] },
+                    { $eq: ["$status", "delivered"] }
+                  ]
+                },
+                "$items.totalPrice",
+                0
+              ]
+            }
           },
-          pendingTotal: { 
-            $sum: { 
-               $cond: [
-                 { 
-                   $and: [
-                     { $eq: ["$items.supplier", supplierId] },
-                     { $in: ["$status", ["pending", "confirmed", "packed", "shipped", "out_for_delivery"]] }
-                   ]
-                 },
-                 "$items.totalPrice", 
-                 0
-               ]
-            } 
+          pendingTotal: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$items.supplier", supplierId] },
+                    { $in: ["$status", ["pending", "confirmed", "packed", "shipped", "out_for_delivery"]] }
+                  ]
+                },
+                "$items.totalPrice",
+                0
+              ]
+            }
           }
         }
       }
@@ -174,12 +174,12 @@ export async function GET(req) {
     let wallet = await Wallet.findOne({ userId: supplierId });
     if (!wallet) {
       console.log(`[WALET LOG] Initializing Wallet for Vendor: ${supplierId}`);
-      wallet = new Wallet({ 
-        userId: supplierId, 
-        balance: dynamicBalance, 
+      wallet = new Wallet({
+        userId: supplierId,
+        balance: dynamicBalance,
         realizedSavings: metrics.deliveredTotal,
         escrowedPoints: metrics.pendingTotal,
-        userType: 'supplier' 
+        userType: 'supplier'
       });
       await wallet.save();
     } else {
@@ -207,12 +207,12 @@ export async function GET(req) {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     const stats30 = await Transaction.aggregate([
-      { 
-        $match: { 
+      {
+        $match: {
           userId: supplierId,
           status: 'completed',
           createdAt: { $gte: thirtyDaysAgo }
-        } 
+        }
       },
       {
         $group: {
@@ -228,13 +228,13 @@ export async function GET(req) {
     return NextResponse.json({
       success: true,
       data: {
-        balance: wallet.balance, 
+        balance: wallet.balance,
         currency: wallet.currency || "INR",
         status: wallet.status || "active",
         recentTransactions: transactions,
         metrics: {
-          deliveredAmount: wallet.realizedSavings, 
-          pendingAmount: wallet.escrowedPoints      
+          deliveredAmount: wallet.realizedSavings,
+          pendingAmount: wallet.escrowedPoints
         },
         stats: {
           inflow: flow30.in,
@@ -277,7 +277,7 @@ export async function POST(req) {
       method: 'bank_transfer',
       status: 'pending',
       description: `Withdrawal request for ₹${amount}`,
-      metadata: { 
+      metadata: {
         bankDetails,
         requestedAt: new Date().toISOString()
       }
@@ -302,7 +302,7 @@ export async function POST(req) {
 
 // 🟠 PATCH /api/wallet: Admin/System manual updates
 export async function PATCH(req) {
-// ... rest of previous patch code ...
+  // ... rest of previous patch code ...
   try {
     await dbConnect();
     const body = await req.json();
@@ -337,7 +337,7 @@ export async function PATCH(req) {
         metadata: { adminNote: "Manual correction via API" }
       });
       await adjustmentTx.save();
-      
+
       // Update balance field directly as well for fast access
       if (['deposit', 'transfer', 'adjustment', 'order_settlement'].includes(type)) {
         wallet.balance += Math.abs(amount);

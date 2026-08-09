@@ -278,20 +278,33 @@ export async function PATCH(request, { params }) {
           }
         }
 
+        const basePriceNum = Number(p.basePrice) || 0;
+        const gstNum = Number(p.gst ?? 18) || 0;
+        const marginNum = Number(p.assuredMargin ?? body.sellingMargin ?? 0) || 0;
+        const costWithGst = basePriceNum + (basePriceNum * gstNum / 100);
+        const computedSellingPrice = costWithGst + (costWithGst * marginNum / 100);
+
         const productData = {
           supplierId: id,
           name: p.productName,
           sku: p.productCode,
           brandId: finalBrandId,
-          unit: p.uom || "Kg",
-          basePrice: Number(p.basePrice || 0),
-          assuredMargin: Number(p.assuredMargin || 0),
+          unit: p.uom || p.primaryUnit || "Kg",
+          basePrice: basePriceNum,
+          gst: gstNum,
+          assuredMargin: marginNum,
+          claimMargin: Number(p.claimMargin ?? body.claimMargin ?? 0) || 0,
+          hsnCode: p.hsnCode || undefined,
           moq: Number(p.moq || 0),
-          price: Number(p.basePrice || 0) + (Number(p.basePrice || 0) * Number(p.assuredMargin || 0) / 100),
+          mov: Number(p.mov || 0),
+          reorderLevel: Number(p.reorderLevel || 0),
+          price: Number(computedSellingPrice.toFixed(2)),
           poTemplateId: p.poTemplateId || undefined,
           claimTemplateId: p.claimTemplateId || undefined,
           isColdStorage: p.isColdStorage === 'Yes' || p.isColdStorage === true,
           temperature: p.temperature || null,
+          shipperDryIce: p.shipperDryIce === true || p.shipperDryIce === 'Yes',
+          reeferVehicleReq: p.reeferVehicleReq === true || p.reeferVehicleReq === 'Yes',
         };
 
         if (p.image) {
@@ -301,7 +314,7 @@ export async function PATCH(request, { params }) {
         const savedProduct = await Product.findOneAndUpdate(
           { sku: p.productCode },
           { $set: productData },
-          { upsert: true, new: true, runValidators: true }
+          { upsert: true, new: true }
         );
 
         // Sync product to Tally Prime 9

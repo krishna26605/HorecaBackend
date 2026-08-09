@@ -1,129 +1,3 @@
-// // src/app/api/products/route.js
-// import { NextResponse } from "next/server";
-// import dbConnect from "@/lib/db/connect";
-// import Product from "@/lib/db/models/product";
-
-
-// /**
-//  * GET /api/products
-//  * Query params:
-//  *  - page (default 1)
-//  *  - limit (default 20)
-//  *  - q (search by name)
-//  *  - categoryId
-//  *  - supplierId
-//  *  - isActive (true/false)
-//  *  - sort (e.g. "-createdAt" or "price")
-//  *  - sku (exact match for product or variant)
-//  */
-// export async function GET(request) {
-//   await dbConnect();
-
-//   try {
-//     const url = new URL(request.url);
-//     const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
-//     const limit = Math.min(100, parseInt(url.searchParams.get("limit") || "20", 10));
-//     const q = url.searchParams.get("q");
-//     const categoryId = url.searchParams.get("categoryId");
-//     const supplierId = url.searchParams.get("supplierId");
-//     const isActive = url.searchParams.get("isActive");
-//     const sort = url.searchParams.get("sort") || "-createdAt";
-//     const sku = url.searchParams.get("sku");
-
-//     const filter = {};
-
-//     if (q) filter.name = { $regex: q, $options: "i" };
-//     if (categoryId) filter.categoryId = categoryId;
-//     if (supplierId) filter.supplierId = supplierId;
-//     if (isActive === "true") filter.isActive = true;
-//     if (isActive === "false") filter.isActive = false;
-
-//     if (sku) {
-//       filter.$or = [{ sku }, { "variations.sku": sku }];
-//     }
-
-//     const skip = (page - 1) * limit;
-
-//     const [total, items] = await Promise.all([
-//       Product.countDocuments(filter),
-//       Product.find(filter)
-//         .sort(sort)
-//         .skip(skip)
-//         .limit(limit)
-//         .lean()
-//     ]);
-
-//     return NextResponse.json({
-//       success: true,
-//       data: {
-//         items,
-//         pagination: {
-//           total,
-//           page,
-//           limit,
-//           pages: Math.ceil(total / limit)
-//         }
-//       }
-//     });
-//   } catch (err) {
-//     console.error("GET /api/products error:", err);
-//     if (err && err.stack) console.error(err.stack);
-//     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
-//   }
-// }
-
-// /**
-//  * POST /api/products
-//  * Creates a product. Body should be JSON matching the Product schema.
-//  * Model will auto-generate product/variation SKUs when missing.
-//  */
-// export async function POST(request) {
-//   await dbConnect();
-
-//   try {
-//     const body = await request.json();
-
-//     // Basic server-side validation
-//     if (!body.name || body.price == null || body.stockQuantity == null || !body.images || !Array.isArray(body.images) || body.images.length === 0) {
-//       return NextResponse.json({ success: false, error: "Missing required fields (name, price, stockQuantity, images[])." }, { status: 400 });
-//     }
-
-//     // Optional: if client supplied SKUs, check for conflicts before attempting to save
-//     const skusToCheck = [];
-//     if (body.sku) skusToCheck.push(body.sku);
-//     if (Array.isArray(body.variations)) {
-//       body.variations.forEach(v => {
-//         if (v && v.sku) skusToCheck.push(v.sku);
-//       });
-//     }
-
-//     if (skusToCheck.length) {
-//       const conflict = await Product.findOne({
-//         $or: [{ sku: { $in: skusToCheck } }, { "variations.sku": { $in: skusToCheck } }]
-//       }).lean();
-//       if (conflict) {
-//         return NextResponse.json({ success: false, error: "SKU conflict", details: { conflictProductId: conflict._id } }, { status: 409 });
-//       }
-//     }
-
-//     // Create product; Product model's pre-save hook will auto-generate SKUs if missing
-//     const product = new Product(body);
-//     await product.save();
-
-//     return NextResponse.json({ success: true, data: product }, { status: 201 });
-//   } catch (err) {
-//     console.error("POST /api/products error:", err);
-//     if (err && err.stack) console.error(err.stack);
-
-//     if (err.name === "ValidationError") {
-//       const errors = Object.values(err.errors).map(e => e.message);
-//       return NextResponse.json({ success: false, error: "Validation failed", details: errors }, { status: 400 });
-//     }
-//     if (err.code === 11000) {
-//       return NextResponse.json({ success: false, error: "Duplicate key error", details: err.keyValue }, { status: 409 });
-//     }
-//     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
-// src/app/api/products/route.js
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import dbConnect from "@/lib/db/connect";
@@ -216,24 +90,24 @@ export async function GET(request) {
     }
 
     if (userId) {
-        // Fetch customer category dynamically (Default to C for safety)
-        const CustomerModel = mongoose.models.Customer || mongoose.model('Customer', new mongoose.Schema({}, {strict:false}));
-        const customerDoc = await CustomerModel.findById(userId).lean();
-        const customerCategory = customerDoc?.category || "C";
+      // Fetch customer category dynamically (Default to C for safety)
+      const CustomerModel = mongoose.models.Customer || mongoose.model('Customer', new mongoose.Schema({}, { strict: false }));
+      const customerDoc = await CustomerModel.findById(userId).lean();
+      const customerCategory = customerDoc?.category || "C";
 
-        // ONLY enforce mapping restrictions for Category C customers
-        if (customerCategory === "C") {
-          // 1. Get mapped products
-          const mapping = await CustomerProductMapping.findOne({ customer: userId }).lean();
-          const mappedProductIds = mapping ? (mapping.products || []) : [];
+      // ONLY enforce mapping restrictions for Category C customers
+      if (customerCategory === "C") {
+        // 1. Get mapped products
+        const mapping = await CustomerProductMapping.findOne({ customer: userId }).lean();
+        const mappedProductIds = mapping ? (mapping.products || []) : [];
 
-          const combinedIds = Array.from(new Set([
-            ...mappedProductIds.map(id => String(id))
-          ])).filter(isValidObjectIdString).map(id => new mongoose.Types.ObjectId(id));
+        const combinedIds = Array.from(new Set([
+          ...mappedProductIds.map(id => String(id))
+        ])).filter(isValidObjectIdString).map(id => new mongoose.Types.ObjectId(id));
 
-          filter._id = { $in: combinedIds };
-        }
+        filter._id = { $in: combinedIds };
       }
+    }
 
     if (q) {
       // Log search activity

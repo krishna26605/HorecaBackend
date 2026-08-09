@@ -1,0 +1,5 @@
+{
+  "tokenExists": true,
+  "verifyError": "jwt expired",
+  "user": null
+}

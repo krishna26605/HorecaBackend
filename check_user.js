@@ -1,21 +1,34 @@
 const mongoose = require('mongoose');
+require('dotenv').config();
 
-// Use the URI from .env
-const MONGODB_URI = "mongodb+srv://chaitanyakhairmodedelxn_db_user:root%40123@cluster0.2muyghy.mongodb.net/?appName=Cluster0";
+const MONGODB_URI = process.env.MONGODB_URI;
 
 async function check() {
     try {
         await mongoose.connect(MONGODB_URI);
         console.log("Connected to DB");
         
-        const phone = "8421121743";
-        const variations = [phone, "+91" + phone, "91" + phone];
-        
-        const CustomerSchema = new mongoose.Schema({ phone: String, name: String, email: String }, { strict: false });
-        const Customer = mongoose.models.Customer || mongoose.model("Customer", CustomerSchema);
-        
-        const customer = await Customer.findOne({ phone: { $in: variations } }).lean();
-        console.log("CUSTOMER_RESULT:", JSON.stringify(customer, null, 2));
+        const db = mongoose.connection.db;
+        const collections = await db.listCollections().toArray();
+        for (const col of collections) {
+            const name = col.name;
+            const documents = await db.collection(name).find({
+                $or: [
+                    { email: 'food@gmail.com' },
+                    { username: 'food@gmail.com' },
+                    { "departmentContacts.routePlanner.email": 'food@gmail.com' },
+                    { "departmentContacts.art.email": 'food@gmail.com' },
+                    { "departmentContacts.act.email": 'food@gmail.com' },
+                    { "departmentContacts.odt.email": 'food@gmail.com' },
+                    { "departmentContacts.scm.email": 'food@gmail.com' }
+                ]
+            }).toArray();
+            
+            if (documents.length > 0) {
+                console.log(`\nFound matches in collection [${name}]:`);
+                console.log(JSON.stringify(documents, null, 2));
+            }
+        }
         
         process.exit(0);
     } catch (err) {

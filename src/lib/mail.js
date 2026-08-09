@@ -89,7 +89,7 @@ export const sendCustomerWelcomeEmail = async ({
     try {
       const resetToken = jwt.sign({ customerId }, JWT_SECRET, { expiresIn: "7d" });
       let frontendUrl = process.env.RESET_URL_BASE || "https://horeca-user-end.vercel.app";
-      if (!process.env.RESET_URL_BASE && (process.env.NODE_ENV === "development" || !process.env.VERCEL)) {
+      if (process.env.NODE_ENV === "development") {
         frontendUrl = "http://localhost:3002";
       }
       const changePasswordUrl = `${frontendUrl.replace(/\/$/, "")}/change-password?token=${resetToken}`;
@@ -345,7 +345,7 @@ export const sendCustomerPasswordResetEmail = async ({
   }
 
   let frontendUrl = process.env.RESET_URL_BASE || "https://horeca-user-end.vercel.app";
-  if (!process.env.RESET_URL_BASE && (process.env.NODE_ENV === "development" || !process.env.VERCEL)) {
+  if (process.env.NODE_ENV === "development") {
     frontendUrl = "http://localhost:3000"; // Fallback for local web frontend
   }
   const resetPasswordUrl = `${frontendUrl.replace(/\/$/, "")}/change-password?token=${resetToken}`;

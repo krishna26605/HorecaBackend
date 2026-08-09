@@ -46,8 +46,11 @@ export async function POST(request) {
     }
 
     // Update last login
-    supplier.lastLogin = new Date();
-    await supplier.save();
+    try {
+      await Supplier.updateOne({ _id: supplier._id }, { $set: { lastLogin: new Date() } });
+    } catch (updateErr) {
+      console.warn("Could not update supplier lastLogin:", updateErr);
+    }
 
     // Generate token
     const token = supplier.generateAccessToken();

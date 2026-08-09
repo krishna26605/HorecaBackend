@@ -8,6 +8,25 @@ import { sendCustomerWelcomeEmail } from "@/lib/mail";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
+// Helper to geocode address to lat/lng using Nominatim OSM
+async function geocodeAddress(addressStr) {
+  if (!addressStr || addressStr.trim().length < 5) return null;
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addressStr)}&format=json&addressdetails=1&countrycodes=in&limit=1`;
+    const res = await fetch(url, { headers: { "User-Agent": "SCM-Logistics-App/1.0" } });
+    const data = await res.json();
+    if (Array.isArray(data) && data.length > 0) {
+      return {
+        lat: parseFloat(data[0].lat),
+        lng: parseFloat(data[0].lon)
+      };
+    }
+  } catch (err) {
+    console.error("[geocodeAddress] Geocoding fallback error:", err);
+  }
+  return null;
+}
+
 // Helper to escape XML entities
 const escapeXML = (str) => {
   if (!str) return "";
@@ -196,18 +215,38 @@ export async function POST(req) {
     }
 
     // Ensure all locations are valid and structured
-    const formattedLocations = locations.map((loc, index) => ({
-      outletName: loc.outletName?.trim() || (index === 0 ? "Main Branch" : null),
-      address: loc.address?.trim() || "",
-      city: loc.city?.trim() || "",
-      state: loc.state?.trim() || "",
-      pincode: loc.pincode?.trim() || "",
-      contactPerson: loc.contactPerson?.trim() || null,
-      contactPhone: loc.contactPhone?.trim() || null,
-      lat: loc.lat != null ? loc.lat : (index === 0 && lat != null ? lat : null),
-      lng: loc.lng != null ? loc.lng : (index === 0 && lng != null ? lng : null),
-      isPrimary: index === 0
-    }));
+    const formattedLocations = [];
+    for (let index = 0; index < locations.length; index++) {
+      const loc = locations[index];
+      let itemLat = loc.lat != null ? loc.lat : (index === 0 && lat != null ? lat : null);
+      let itemLng = loc.lng != null ? loc.lng : (index === 0 && lng != null ? lng : null);
+
+      if (itemLat == null || itemLng == null) {
+        const fullAddr = `${loc.address || ""}, ${loc.city || ""}, ${loc.state || ""}, ${loc.pincode || ""}`;
+        const coords = await geocodeAddress(fullAddr);
+        if (coords) {
+          itemLat = coords.lat;
+          itemLng = coords.lng;
+        }
+      }
+
+      formattedLocations.push({
+        outletName: loc.outletName?.trim() || (index === 0 ? "Main Branch" : null),
+        address: loc.address?.trim() || "",
+        city: loc.city?.trim() || "",
+        state: loc.state?.trim() || "",
+        pincode: loc.pincode?.trim() || "",
+        contactPerson: loc.contactPerson?.trim() || null,
+        contactPhone: loc.contactPhone?.trim() || null,
+        contactEmail: loc.contactEmail?.trim() || null,
+        assignedRoute: loc.assignedRoute || null,
+        routeName: loc.routeName || null,
+        routeCode: loc.routeCode || null,
+        lat: itemLat,
+        lng: itemLng,
+        isPrimary: index === 0
+      });
+    }
 
     const finalLat = lat != null ? lat : (formattedLocations[0]?.lat != null ? formattedLocations[0].lat : null);
     const finalLng = lng != null ? lng : (formattedLocations[0]?.lng != null ? formattedLocations[0].lng : null);
@@ -256,17 +295,49 @@ export async function POST(req) {
       location: finalLat != null && finalLng != null ? { type: "Point", coordinates: [finalLng, finalLat] } : undefined,
       locations: formattedLocations,
       hasMultipleOutlets: Boolean(hasMultipleOutlets),
-      outlets: Array.isArray(outlets) ? outlets.map(o => ({
-        outletName: o.outletName?.trim() || "",
-        address: o.address?.trim() || "",
-        city: o.city?.trim() || "",
-        state: o.state?.trim() || "",
-        pincode: o.pincode?.trim() || "",
-        contactPerson: o.contactPerson?.trim() || null,
-        contactPhone: o.contactPhone?.trim() || null,
-        lat: o.lat != null ? o.lat : null,
-        lng: o.lng != null ? o.lng : null
-      })) : [],
+      source: body.source || "Self-Registered",
+      departmentContacts: {
+        art: {
+          name: body.departmentContacts?.art?.name?.trim() || null,
+          phone: body.departmentContacts?.art?.phone?.trim() || null,
+          email: body.departmentContacts?.art?.email?.trim() || null
+        },
+        act: {
+          name: body.departmentContacts?.act?.name?.trim() || null,
+          phone: body.departmentContacts?.act?.phone?.trim() || null,
+          email: body.departmentContacts?.act?.email?.trim() || null
+        },
+        odt: {
+          name: body.departmentContacts?.odt?.name?.trim() || null,
+          phone: body.departmentContacts?.odt?.phone?.trim() || null,
+          email: body.departmentContacts?.odt?.email?.trim() || null
+        },
+        scm: {
+          name: body.departmentContacts?.scm?.name?.trim() || null,
+          phone: body.departmentContacts?.scm?.phone?.trim() || null,
+          email: body.departmentContacts?.scm?.email?.trim() || null
+        },
+        routePlanner: {
+          name: body.departmentContacts?.routePlanner?.name?.trim() || null,
+          phone: body.departmentContacts?.routePlanner?.phone?.trim() || null,
+          email: body.departmentContacts?.routePlanner?.email?.trim() || null
+        }
+      },
+      outlets: formattedLocations.filter(loc => !loc.isPrimary).map(loc => ({
+        outletName: loc.outletName,
+        address: loc.address,
+        city: loc.city,
+        state: loc.state,
+        pincode: loc.pincode,
+        contactPerson: loc.contactPerson,
+        contactPhone: loc.contactPhone,
+        contactEmail: loc.contactEmail,
+        assignedRoute: loc.assignedRoute,
+        routeName: loc.routeName,
+        routeCode: loc.routeCode,
+        lat: loc.lat,
+        lng: loc.lng
+      })),
       businessName: businessName.trim(),
       gstNumber: gstNumber || null,
       gstEffectiveDate: body.gstEffectiveDate || null,
@@ -279,6 +350,7 @@ export async function POST(req) {
       category,
       customerGroup: body.customerGroup || body.tallyGroup || "Sundry Debtors",
       advanceBalance: Number(body.advanceAmount || 0),
+      hasPaidAdvance: body.hasPaidAdvance !== undefined ? Boolean(body.hasPaidAdvance) : false,
       advancePaymentMode: body.advancePaymentMode || null,
       advancePaymentProofUrl: body.advancePaymentProofUrl || null,
       customerType: customerType || null,
