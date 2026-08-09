@@ -3513,7 +3513,7 @@ export async function POST(request) {
       let customerDoc = await Customer.findById(identifiedUser._id);
       const availableAdvance = Number(customerDoc?.advanceBalance || identifiedUser.advanceBalance || 0);
 
-      if (availableAdvance < total) {
+      if (availableAdvance < total && body.orderSource !== "ODT") {
         return json({
           success: false,
           error: "INSUFFICIENT_ADVANCE_BALANCE",
