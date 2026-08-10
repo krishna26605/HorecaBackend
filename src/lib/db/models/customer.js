@@ -94,6 +94,22 @@ const CustomerSchema = new mongoose.Schema(
       default: false
     },
 
+    // Outlet Hierarchy
+    isSubOutlet: {
+      type: Boolean,
+      default: false
+    },
+    parentCustomerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Customer",
+      default: null
+    },
+    outletName: {
+      type: String,
+      trim: true,
+      default: null
+    },
+
     source: {
       type: String,
       default: "Self-Registered",
@@ -330,6 +346,13 @@ const CustomerSchema = new mongoose.Schema(
 
     lastLoginAt: {
       type: Date,
+      default: null
+    },
+
+    // Portal-visible display override name for sub-outlets
+    displayName: {
+      type: String,
+      trim: true,
       default: null
     }
   },
