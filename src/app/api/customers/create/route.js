@@ -50,12 +50,12 @@ function buildCustomerXML(customer) {
   const name = escapeXML(customer.name || customer.businessName || customer.phone || "Unknown Customer");
   const mongoId = escapeXML(customer._id.toString());
   const mailingName = escapeXML(customer.businessName || customer.name || customer.phone || "Unknown Customer");
-  
+
   const address = escapeXML(customer.address || "");
   const city = escapeXML(customer.city || "");
   const state = escapeXML(customer.state || "Maharashtra");
   const pincode = escapeXML(customer.pincode || "");
-  
+
   const phone = escapeXML(customer.phone || "");
   const email = escapeXML(customer.email || "");
   const gstNumber = escapeXML(customer.gstNumber || ""); 
@@ -113,7 +113,7 @@ function parseTallyResponse(xmlString) {
 
   const createdMatch = xmlString.match(/<CREATED>(\d+)<\/CREATED>/);
   const alteredMatch = xmlString.match(/<ALTERED>(\d+)<\/ALTERED>/);
-  
+
   const createdCount = createdMatch ? parseInt(createdMatch[1], 10) : 0;
   const alteredCount = alteredMatch ? parseInt(alteredMatch[1], 10) : 0;
 
@@ -140,7 +140,7 @@ export async function POST(request) {
     const body = await request.json().catch(() => ({}));
     console.log("📩 Request Body:", body);
 
-    const { phone, name, email, address, city, state, pincode, lat, lng, customerType, department, hasMultipleOutlets, outlets, isContractBased, contract, contractType, contractDocumentUrl, contractStartDate, contractExpiryDate, contractNotes, contracts } = body;
+    const { phone, name, email, address, city, state, pincode, lat, lng, customerType, department, hasMultipleOutlets, outlets, isContractBased, contract, contractType, contractDocumentUrl, contractStartDate, contractExpiryDate, contractNotes } = body;
 
     if (!phone) {
       console.log("❌ Missing phone");
@@ -241,39 +241,8 @@ export async function POST(request) {
           routeName: o.routeName || null,
           routeCode: o.routeCode || null,
           lat: oLat,
-          lng: oLng,
-          hasFssai: o.hasFssai !== undefined ? Boolean(o.hasFssai) : true,
-          fssaiNumber: o.fssaiNumber?.trim() || null,
-          fssaiExpiryDate: o.fssaiExpiryDate ? new Date(o.fssaiExpiryDate) : null,
-          fssaiDocUrl: o.fssaiDocUrl?.trim() || null,
-          fssaiUndertakingDocUrl: o.fssaiUndertakingDocUrl?.trim() || null,
-          password: o.password || null
+          lng: oLng
         });
-      }
-    }
-
-    // Check duplicates for outlets in manual creation
-    if (Array.isArray(formattedOutlets)) {
-      for (let i = 0; i < formattedOutlets.length; i++) {
-        const o = formattedOutlets[i];
-        if (!o.contactEmail || !o.contactPhone) {
-          return NextResponse.json({ success: false, error: `Outlet #${i + 1} is missing required Contact Email or Phone number` }, { status: 400 });
-        }
-
-        const existingOutletUser = await Customer.findOne({
-          $or: [
-            { username: o.contactEmail.toLowerCase().trim() },
-            { email: o.contactEmail.toLowerCase().trim() },
-            { phone: o.contactPhone.trim() }
-          ]
-        });
-
-        if (existingOutletUser) {
-          return NextResponse.json({
-            success: false,
-            error: `Outlet #${i + 1} contact details (${o.contactEmail} / ${o.contactPhone}) already registered to another user`
-          }, { status: 409 });
-        }
       }
     }
 
@@ -340,6 +309,20 @@ export async function POST(request) {
         }
       },
       outlets: formattedOutlets,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       locations: [
         {
           outletName: "Main Branch",
@@ -371,15 +354,10 @@ export async function POST(request) {
           routeCode: o.routeCode,
           lat: o.lat,
           lng: o.lng,
-          isPrimary: false,
-          hasFssai: o.hasFssai,
-          fssaiNumber: o.fssaiNumber,
-          fssaiExpiryDate: o.fssaiExpiryDate,
-          fssaiDocUrl: o.fssaiDocUrl,
-          fssaiUndertakingDocUrl: o.fssaiUndertakingDocUrl
+          isPrimary: false
         }))
       ],
-      urdDocUrl: body.urdDocUrl || body.urcDocUrl || null,
+      urcDocUrl: body.urcDocUrl || null,
       hasFssai: body.hasFssai !== undefined ? Boolean(body.hasFssai) : true,
       fssaiNumber: body.fssaiNumber ? body.fssaiNumber.trim() : null,
       fssaiExpiryDate: body.fssaiExpiryDate ? new Date(body.fssaiExpiryDate) : null,
@@ -387,31 +365,14 @@ export async function POST(request) {
       fssaiUndertakingDocUrl: body.fssaiUndertakingDocUrl || null,
       licenseExpiryDate: body.licenseExpiryDate ? new Date(body.licenseExpiryDate) : null,
       isContractBased: Boolean(isContractBased),
-      contract: isContractBased && Array.isArray(contracts) && contracts.length > 0 ? {
-        contractType: contracts[0].contractType || null,
-        documentUrl: contracts[0].documentUrl || null,
-        startDate: contracts[0].startDate ? new Date(contracts[0].startDate) : null,
-        expiryDate: contracts[0].expiryDate ? new Date(contracts[0].expiryDate) : null,
-        notes: contracts[0].notes || null,
-        uploadedAt: new Date()
-      } : (isContractBased ? {
+      contract: isContractBased ? {
         contractType: contract?.contractType || contractType || null,
         documentUrl: contract?.documentUrl || contractDocumentUrl || null,
         startDate: contract?.startDate || contractStartDate ? new Date(contract?.startDate || contractStartDate) : null,
         expiryDate: contract?.expiryDate || contractExpiryDate ? new Date(contract?.expiryDate || contractExpiryDate) : null,
         notes: contract?.notes || contractNotes || null,
         uploadedAt: new Date()
-      } : undefined),
-      contracts: isContractBased && Array.isArray(contracts) ? contracts.map(c => ({
-        brandId: c.brandId || null,
-        brandName: c.brandName || null,
-        contractType: c.contractType || null,
-        documentUrl: c.documentUrl || null,
-        startDate: c.startDate ? new Date(c.startDate) : null,
-        expiryDate: c.expiryDate ? new Date(c.expiryDate) : null,
-        notes: c.notes || null,
-        uploadedAt: new Date()
-      })) : [],
+      } : undefined,
       lastLoginAt: new Date(),
     });
 
@@ -436,81 +397,6 @@ export async function POST(request) {
       }
     } catch (mailErr) {
       console.error("[Email Notification Error] Failed to send email:", mailErr);
-    }
-
-    // Create separate accounts for each additional outlet/branch in manual creation
-    if (hasMultipleOutlets && Array.isArray(formattedOutlets)) {
-      for (let i = 0; i < formattedOutlets.length; i++) {
-        const o = formattedOutlets[i];
-        
-        let outletRawPassword = o.password ? o.password.trim() : "";
-        if (!outletRawPassword) {
-          outletRawPassword = generateSystemPassword();
-        }
-        const outletSalt = await bcrypt.genSalt(10);
-        const outletHashedPassword = await bcrypt.hash(outletRawPassword, outletSalt);
-
-        // Normalize Phone for outlet
-        const outPhone = o.contactPhone.trim();
-        const numericOutPhone = outPhone.replace(/\D/g, "");
-        const standardizedOutPhone = (numericOutPhone.length === 10) ? `+91${numericOutPhone}` :
-          (numericOutPhone.length === 12 && numericOutPhone.startsWith("91")) ? `+${numericOutPhone}` :
-            outPhone;
-
-        const outletUser = await Customer.create({
-          username: o.contactEmail.toLowerCase().trim(),
-          password: outletHashedPassword,
-          phone: standardizedOutPhone,
-          name: `${newCustomer.businessName} - ${o.outletName}`,
-          email: o.contactEmail.toLowerCase().trim(),
-          address: o.address,
-          city: o.city,
-          state: o.state,
-          pincode: o.pincode,
-          lat: o.lat,
-          lng: o.lng,
-          location: o.lat != null && o.lng != null ? { type: "Point", coordinates: [o.lng, o.lat] } : undefined,
-          businessName: newCustomer.businessName,
-          gstNumber: newCustomer.gstNumber,
-          gstEffectiveDate: newCustomer.gstEffectiveDate,
-          gstDocUrl: newCustomer.gstDocUrl,
-          category: newCustomer.category,
-          customerGroup: newCustomer.customerGroup,
-          assignedRoute: o.assignedRoute,
-          routeName: o.routeName,
-          routeCode: o.routeCode,
-          hasFssai: o.hasFssai,
-          fssaiNumber: o.fssaiNumber,
-          fssaiExpiryDate: o.fssaiExpiryDate,
-          fssaiDocUrl: o.fssaiDocUrl,
-          fssaiUndertakingDocUrl: o.fssaiUndertakingDocUrl,
-          licenseImage: newCustomer.licenseImage,
-          hasMultipleOutlets: false,
-          source: newCustomer.source,
-          lastLoginAt: new Date()
-        });
-
-        // Send Welcome Email to outlet email
-        if (o.contactEmail) {
-          try {
-            const isUrgCustomer = newCustomer.gstNumber === "URD" || newCustomer.gstNumber === "URG" || !newCustomer.gstNumber;
-            await sendCustomerWelcomeEmail({
-              email: o.contactEmail.toLowerCase().trim(),
-              name: `${newCustomer.businessName} - ${o.outletName}`,
-              businessName: newCustomer.businessName,
-              username: o.contactEmail.toLowerCase().trim(),
-              password: outletRawPassword,
-              gstNumber: isUrgCustomer ? "URD" : (newCustomer.gstNumber ? newCustomer.gstNumber.trim().toUpperCase() : "URD"),
-              creditTerm: Number(newCustomer.creditTerm || 0),
-              creditLimit: Number(newCustomer.creditLimit || 0),
-              customerId: outletUser._id.toString()
-            });
-            console.log(`[Email Dispatcher] Welcome email sent successfully to manual outlet: ${o.contactEmail}`);
-          } catch (emailErr) {
-            console.error(`[Email Dispatcher] Failed to send welcome email to manual outlet ${o.contactEmail}:`, emailErr);
-          }
-        }
-      }
     }
 
     // Sync Customer Ledger to Tally Prime 9
@@ -544,7 +430,7 @@ export async function POST(request) {
         if (parsed.success) {
           tallyCustomerSynced = true;
           console.log(`[Tally Sync] Customer synced successfully to Tally.`);
-          
+
           // Fetch the generated GUID from Tally and store it
           try {
             const guidPayload = `<ENVELOPE>
@@ -575,13 +461,13 @@ export async function POST(request) {
                 </DESC>
               </BODY>
             </ENVELOPE>`;
-            
+
             const guidResponse = await fetch(tallyUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'text/xml' },
               body: guidPayload
             });
-            
+
             if (guidResponse.ok) {
               const guidXml = await guidResponse.text();
               const guidMatch = guidXml.match(/<GUID>([^<]+)<\/GUID>/);

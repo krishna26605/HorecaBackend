@@ -140,9 +140,8 @@ export async function POST(req) {
     const {
       password, email, phone, businessName, gstNumber, panNumber,
       licenseImage, name, locations, hasMultipleOutlets, outlets, supplierId, category, customerType, department, poMandatory,
-      creditTerm, creditLimit, urcDocUrl, urdDocUrl, assignedRoute, routeName, routeCode,
-      lat, lng, isContractBased, contract, contractType, contractDocumentUrl, contractStartDate, contractExpiryDate, contractNotes,
-      contracts
+      creditTerm, creditLimit, urcDocUrl, assignedRoute, routeName, routeCode,
+      lat, lng, isContractBased, contract, contractType, contractDocumentUrl, contractStartDate, contractExpiryDate, contractNotes
     } = body;
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -190,9 +189,9 @@ export async function POST(req) {
     }
 
     const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
-    const isUrg = gstNumber === "URD" || gstNumber === "URG" || gstNumber === "Unregistered" || body.isUrd === true || body.isUrg === true;
+    const isUrg = gstNumber === "URG" || gstNumber === "Unregistered" || body.isUrg === true;
     if (!isUrg && (!gstNumber || !gstRegex.test(gstNumber.trim().toUpperCase()))) {
-      return NextResponse.json({ success: false, error: "Either a valid GST number or URD (Unregistered) selection is required" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Either a valid GST number or URG (Unregistered) selection is required" }, { status: 400 });
     }
 
     if (!locations || !Array.isArray(locations) || locations.length === 0) {
@@ -245,13 +244,7 @@ export async function POST(req) {
         routeCode: loc.routeCode || null,
         lat: itemLat,
         lng: itemLng,
-        isPrimary: index === 0,
-        hasFssai: loc.hasFssai !== undefined ? Boolean(loc.hasFssai) : true,
-        fssaiNumber: loc.fssaiNumber?.trim() || null,
-        fssaiExpiryDate: loc.fssaiExpiryDate ? new Date(loc.fssaiExpiryDate) : null,
-        fssaiDocUrl: loc.fssaiDocUrl?.trim() || null,
-        fssaiUndertakingDocUrl: loc.fssaiUndertakingDocUrl?.trim() || null,
-        password: loc.password || null
+        isPrimary: index === 0
       });
     }
 
@@ -273,33 +266,6 @@ export async function POST(req) {
       else if (existingUser.phone === phone) conflictField = "Phone number";
 
       return NextResponse.json({ success: false, error: `${conflictField} already exists` }, { status: 409 });
-    }
-
-    // Check duplicates for outlets
-    if (hasMultipleOutlets && Array.isArray(formattedLocations)) {
-      for (let i = 0; i < formattedLocations.length; i++) {
-        const loc = formattedLocations[i];
-        if (loc.isPrimary) continue;
-
-        if (!loc.contactEmail || !loc.contactPhone) {
-          return NextResponse.json({ success: false, error: `Outlet #${i} is missing required Contact Email or Phone number` }, { status: 400 });
-        }
-
-        const existingOutletUser = await Customer.findOne({
-          $or: [
-            { username: loc.contactEmail.toLowerCase().trim() },
-            { email: loc.contactEmail.toLowerCase().trim() },
-            { phone: loc.contactPhone.trim() }
-          ]
-        });
-
-        if (existingOutletUser) {
-          return NextResponse.json({
-            success: false,
-            error: `Outlet #${i} contact details (${loc.contactEmail} / ${loc.contactPhone}) already registered to another user`
-          }, { status: 409 });
-        }
-      }
     }
 
     // Hash password
@@ -357,32 +323,21 @@ export async function POST(req) {
           email: body.departmentContacts?.routePlanner?.email?.trim() || null
         }
       },
-      outlets: (() => {
-        // Use the body's outlets array directly if provided (from multi-outlet form),
-        // otherwise fall back to locations-derived formattedLocations
-        const bodyOutlets = Array.isArray(outlets) && outlets.length > 0 ? outlets : null;
-        const source = bodyOutlets || formattedLocations.filter(loc => !loc.isPrimary);
-        return source.map(loc => ({
-          outletName: loc.outletName || null,
-          address: loc.address || "",
-          city: loc.city || "",
-          state: loc.state || "",
-          pincode: loc.pincode || "",
-          contactPerson: loc.contactPerson || null,
-          contactPhone: loc.contactPhone || null,
-          contactEmail: loc.contactEmail || null,
-          assignedRoute: loc.assignedRoute || null,
-          routeName: loc.routeName || null,
-          routeCode: loc.routeCode || null,
-          lat: loc.lat || null,
-          lng: loc.lng || null,
-          hasFssai: loc.hasFssai !== undefined ? Boolean(loc.hasFssai) : true,
-          fssaiNumber: loc.fssaiNumber || null,
-          fssaiExpiryDate: loc.fssaiExpiryDate ? new Date(loc.fssaiExpiryDate) : null,
-          fssaiDocUrl: loc.fssaiDocUrl || null,
-          fssaiUndertakingDocUrl: loc.fssaiUndertakingDocUrl || null
-        }));
-      })(),
+      outlets: formattedLocations.filter(loc => !loc.isPrimary).map(loc => ({
+        outletName: loc.outletName,
+        address: loc.address,
+        city: loc.city,
+        state: loc.state,
+        pincode: loc.pincode,
+        contactPerson: loc.contactPerson,
+        contactPhone: loc.contactPhone,
+        contactEmail: loc.contactEmail,
+        assignedRoute: loc.assignedRoute,
+        routeName: loc.routeName,
+        routeCode: loc.routeCode,
+        lat: loc.lat,
+        lng: loc.lng
+      })),
       businessName: businessName.trim(),
       gstNumber: gstNumber || null,
       gstEffectiveDate: body.gstEffectiveDate || null,
@@ -403,7 +358,7 @@ export async function POST(req) {
       poMandatory: poMandatory || false,
       creditTerm: Number(creditTerm || 0),
       creditLimit: Number(creditLimit || 0),
-      urdDocUrl: urdDocUrl || urcDocUrl || null,
+      urcDocUrl: urcDocUrl || null,
       hasFssai: body.hasFssai !== undefined ? Boolean(body.hasFssai) : true,
       fssaiNumber: body.fssaiNumber ? body.fssaiNumber.trim() : null,
       fssaiExpiryDate: body.fssaiExpiryDate ? new Date(body.fssaiExpiryDate) : null,
@@ -412,37 +367,14 @@ export async function POST(req) {
       licenseExpiryDate: body.licenseExpiryDate ? new Date(body.licenseExpiryDate) : null,
       supplierId: supplierId || null,
       isContractBased: Boolean(isContractBased),
-      // contract (legacy single field) — only used when legacy single-contract data is sent
-      // and NO new multi-brand contracts array is provided. Clear it otherwise.
-      contract: (isContractBased && !(Array.isArray(contracts) && contracts.length > 0)) ? {
-
-
-
-
-
+      contract: isContractBased ? {
         contractType: contract?.contractType || contractType || null,
         documentUrl: contract?.documentUrl || contractDocumentUrl || null,
         startDate: contract?.startDate || contractStartDate ? new Date(contract?.startDate || contractStartDate) : null,
         expiryDate: contract?.expiryDate || contractExpiryDate ? new Date(contract?.expiryDate || contractExpiryDate) : null,
         notes: contract?.notes || contractNotes || null,
         uploadedAt: new Date()
-      } : {
-        contractType: null, documentUrl: null, startDate: null,
-        expiryDate: null, notes: null, uploadedAt: null
-      },
-      // contracts — the canonical multi-brand contracts array
-      contracts: isContractBased && Array.isArray(contracts) && contracts.length > 0
-        ? contracts.map(c => ({
-            brandId: c.brandId || null,
-            brandName: c.brandName || null,
-            contractType: c.contractType || null,
-            documentUrl: c.documentUrl || null,
-            startDate: c.startDate ? new Date(c.startDate) : null,
-            expiryDate: c.expiryDate ? new Date(c.expiryDate) : null,
-            notes: c.notes || null,
-            uploadedAt: new Date()
-          }))
-        : [],
+      } : undefined,
       lastLoginAt: new Date()
     });
 
@@ -494,88 +426,6 @@ export async function POST(req) {
       }
     } else {
       console.log(`[Email Dispatcher] Welcome email skipped for ${email} (Awaiting CCT approval)`);
-    }
-
-    // Create separate accounts for each additional outlet/branch
-    if (hasMultipleOutlets && Array.isArray(formattedLocations)) {
-      for (let i = 0; i < formattedLocations.length; i++) {
-        const loc = formattedLocations[i];
-        if (loc.isPrimary) continue;
-
-        let outletRawPassword = loc.password ? loc.password.trim() : "";
-        if (!outletRawPassword) {
-          outletRawPassword = generateSystemPassword();
-        }
-        const outletSalt = await bcrypt.genSalt(10);
-        const outletHashedPassword = await bcrypt.hash(outletRawPassword, outletSalt);
-
-        // Normalize Phone for outlet
-        const outPhone = loc.contactPhone.trim();
-        const numericOutPhone = outPhone.replace(/\D/g, "");
-        const standardizedOutPhone = (numericOutPhone.length === 10) ? `+91${numericOutPhone}` :
-          (numericOutPhone.length === 12 && numericOutPhone.startsWith("91")) ? `+${numericOutPhone}` :
-            outPhone;
-
-        const outletUser = await Customer.create({
-          isVerified: newUser.isVerified,
-          username: loc.contactEmail.toLowerCase().trim(),
-          password: outletHashedPassword,
-          email: loc.contactEmail.toLowerCase().trim(),
-          phone: standardizedOutPhone,
-          name: `${newUser.businessName} - ${loc.outletName}`,
-          displayName: loc.outletName?.trim() || null,
-          businessName: newUser.businessName,
-          address: loc.address,
-          city: loc.city,
-          state: loc.state,
-          pincode: loc.pincode,
-          lat: loc.lat,
-          lng: loc.lng,
-          location: loc.lat != null && loc.lng != null ? { type: "Point", coordinates: [loc.lng, loc.lat] } : undefined,
-          gstNumber: newUser.gstNumber,
-          gstEffectiveDate: newUser.gstEffectiveDate,
-          gstDocUrl: newUser.gstDocUrl,
-          panNumber: newUser.panNumber,
-          licenseImage: newUser.licenseImage,
-          hasMultipleOutlets: false,
-          isSubOutlet: true,
-          parentCustomerId: newUser._id,
-          outletName: loc.outletName?.trim() || null,
-          category: newUser.category,
-          customerGroup: newUser.customerGroup,
-          assignedRoute: loc.assignedRoute,
-          routeName: loc.routeName,
-          routeCode: loc.routeCode,
-          hasFssai: loc.hasFssai,
-          fssaiNumber: loc.fssaiNumber,
-          fssaiExpiryDate: loc.fssaiExpiryDate,
-          fssaiDocUrl: loc.fssaiDocUrl,
-          fssaiUndertakingDocUrl: loc.fssaiUndertakingDocUrl,
-          source: newUser.source,
-          lastLoginAt: new Date()
-        });
-
-        // Send Welcome Email to outlet email
-        if (outletUser.isVerified && loc.contactEmail) {
-          try {
-            const isUrgCustomer = newUser.gstNumber === "URD" || newUser.gstNumber === "URG" || !newUser.gstNumber;
-            await sendCustomerWelcomeEmail({
-              email: loc.contactEmail.toLowerCase().trim(),
-              name: `${newUser.businessName} - ${loc.outletName}`,
-              businessName: newUser.businessName,
-              username: loc.contactEmail.toLowerCase().trim(),
-              password: outletRawPassword,
-              gstNumber: isUrgCustomer ? "URD" : (newUser.gstNumber ? newUser.gstNumber.trim().toUpperCase() : "URD"),
-              creditTerm: Number(newUser.creditTerm || 0),
-              creditLimit: Number(newUser.creditLimit || 0),
-              customerId: outletUser._id.toString()
-            });
-            console.log(`[Email Dispatcher] Welcome email sent successfully to outlet: ${loc.contactEmail}`);
-          } catch (emailErr) {
-            console.error(`[Email Dispatcher] Failed to send welcome email to outlet ${loc.contactEmail}:`, emailErr);
-          }
-        }
-      }
     }
 
     // Create JWT
