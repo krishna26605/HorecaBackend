@@ -357,26 +357,32 @@ export async function POST(req) {
           email: body.departmentContacts?.routePlanner?.email?.trim() || null
         }
       },
-      outlets: formattedLocations.filter(loc => !loc.isPrimary).map(loc => ({
-        outletName: loc.outletName,
-        address: loc.address,
-        city: loc.city,
-        state: loc.state,
-        pincode: loc.pincode,
-        contactPerson: loc.contactPerson,
-        contactPhone: loc.contactPhone,
-        contactEmail: loc.contactEmail,
-        assignedRoute: loc.assignedRoute,
-        routeName: loc.routeName,
-        routeCode: loc.routeCode,
-        lat: loc.lat,
-        lng: loc.lng,
-        hasFssai: loc.hasFssai,
-        fssaiNumber: loc.fssaiNumber,
-        fssaiExpiryDate: loc.fssaiExpiryDate,
-        fssaiDocUrl: loc.fssaiDocUrl,
-        fssaiUndertakingDocUrl: loc.fssaiUndertakingDocUrl
-      })),
+      outlets: (() => {
+        // Use the body's outlets array directly if provided (from multi-outlet form),
+        // otherwise fall back to locations-derived formattedLocations
+        const bodyOutlets = Array.isArray(outlets) && outlets.length > 0 ? outlets : null;
+        const source = bodyOutlets || formattedLocations.filter(loc => !loc.isPrimary);
+        return source.map(loc => ({
+          outletName: loc.outletName || null,
+          address: loc.address || "",
+          city: loc.city || "",
+          state: loc.state || "",
+          pincode: loc.pincode || "",
+          contactPerson: loc.contactPerson || null,
+          contactPhone: loc.contactPhone || null,
+          contactEmail: loc.contactEmail || null,
+          assignedRoute: loc.assignedRoute || null,
+          routeName: loc.routeName || null,
+          routeCode: loc.routeCode || null,
+          lat: loc.lat || null,
+          lng: loc.lng || null,
+          hasFssai: loc.hasFssai !== undefined ? Boolean(loc.hasFssai) : true,
+          fssaiNumber: loc.fssaiNumber || null,
+          fssaiExpiryDate: loc.fssaiExpiryDate ? new Date(loc.fssaiExpiryDate) : null,
+          fssaiDocUrl: loc.fssaiDocUrl || null,
+          fssaiUndertakingDocUrl: loc.fssaiUndertakingDocUrl || null
+        }));
+      })(),
       businessName: businessName.trim(),
       gstNumber: gstNumber || null,
       gstEffectiveDate: body.gstEffectiveDate || null,
@@ -406,31 +412,32 @@ export async function POST(req) {
       licenseExpiryDate: body.licenseExpiryDate ? new Date(body.licenseExpiryDate) : null,
       supplierId: supplierId || null,
       isContractBased: Boolean(isContractBased),
-      contract: isContractBased && Array.isArray(contracts) && contracts.length > 0 ? {
-        contractType: contracts[0].contractType || null,
-        documentUrl: contracts[0].documentUrl || null,
-        startDate: contracts[0].startDate ? new Date(contracts[0].startDate) : null,
-        expiryDate: contracts[0].expiryDate ? new Date(contracts[0].expiryDate) : null,
-        notes: contracts[0].notes || null,
-        uploadedAt: new Date()
-      } : (isContractBased ? {
+      // contract (legacy single field) — only used when legacy single-contract data is sent
+      // and NO new multi-brand contracts array is provided. Clear it otherwise.
+      contract: (isContractBased && !(Array.isArray(contracts) && contracts.length > 0)) ? {
         contractType: contract?.contractType || contractType || null,
         documentUrl: contract?.documentUrl || contractDocumentUrl || null,
         startDate: contract?.startDate || contractStartDate ? new Date(contract?.startDate || contractStartDate) : null,
         expiryDate: contract?.expiryDate || contractExpiryDate ? new Date(contract?.expiryDate || contractExpiryDate) : null,
         notes: contract?.notes || contractNotes || null,
         uploadedAt: new Date()
-      } : undefined),
-      contracts: isContractBased && Array.isArray(contracts) ? contracts.map(c => ({
-        brandId: c.brandId || null,
-        brandName: c.brandName || null,
-        contractType: c.contractType || null,
-        documentUrl: c.documentUrl || null,
-        startDate: c.startDate ? new Date(c.startDate) : null,
-        expiryDate: c.expiryDate ? new Date(c.expiryDate) : null,
-        notes: c.notes || null,
-        uploadedAt: new Date()
-      })) : [],
+      } : {
+        contractType: null, documentUrl: null, startDate: null,
+        expiryDate: null, notes: null, uploadedAt: null
+      },
+      // contracts — the canonical multi-brand contracts array
+      contracts: isContractBased && Array.isArray(contracts) && contracts.length > 0
+        ? contracts.map(c => ({
+            brandId: c.brandId || null,
+            brandName: c.brandName || null,
+            contractType: c.contractType || null,
+            documentUrl: c.documentUrl || null,
+            startDate: c.startDate ? new Date(c.startDate) : null,
+            expiryDate: c.expiryDate ? new Date(c.expiryDate) : null,
+            notes: c.notes || null,
+            uploadedAt: new Date()
+          }))
+        : [],
       lastLoginAt: new Date()
     });
 
