@@ -415,6 +415,11 @@ export async function POST(req) {
       // contract (legacy single field) — only used when legacy single-contract data is sent
       // and NO new multi-brand contracts array is provided. Clear it otherwise.
       contract: (isContractBased && !(Array.isArray(contracts) && contracts.length > 0)) ? {
+
+
+
+
+
         contractType: contract?.contractType || contractType || null,
         documentUrl: contract?.documentUrl || contractDocumentUrl || null,
         startDate: contract?.startDate || contractStartDate ? new Date(contract?.startDate || contractStartDate) : null,
@@ -458,7 +463,7 @@ export async function POST(req) {
         if (email) {
           const isUrgCustomer = body.isUrg || gstNumber === "URG" || gstNumber === "Unregistered" || !gstNumber;
           console.log(`[Email Dispatcher] Attempting welcome email for ${email} (URG: ${isUrgCustomer})`);
-          
+
           mailResult = await sendCustomerWelcomeEmail({
             email: email.trim(),
             name: name ? name.trim() : businessName.trim(),
@@ -472,7 +477,7 @@ export async function POST(req) {
           });
 
           console.log(`[Email Notification Result] Success: ${mailResult?.success} | MessageId: ${mailResult?.messageId} | Error: ${mailResult?.error}`);
-          
+
           await logger({
             level: mailResult?.success ? 'info' : 'error',
             message: mailResult?.success ? `Welcome email sent to ${email}` : `Failed to send welcome email to ${email}: ${mailResult?.error}`,
