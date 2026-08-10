@@ -140,8 +140,9 @@ export async function POST(req) {
     const {
       password, email, phone, businessName, gstNumber, panNumber,
       licenseImage, name, locations, hasMultipleOutlets, outlets, supplierId, category, customerType, department, poMandatory,
-      creditTerm, creditLimit, urcDocUrl, assignedRoute, routeName, routeCode,
-      lat, lng, isContractBased, contract, contractType, contractDocumentUrl, contractStartDate, contractExpiryDate, contractNotes
+      creditTerm, creditLimit, urcDocUrl, urdDocUrl, assignedRoute, routeName, routeCode,
+      lat, lng, isContractBased, contract, contractType, contractDocumentUrl, contractStartDate, contractExpiryDate, contractNotes,
+      contracts
     } = body;
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -189,9 +190,9 @@ export async function POST(req) {
     }
 
     const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
-    const isUrg = gstNumber === "URG" || gstNumber === "Unregistered" || body.isUrg === true;
+    const isUrg = gstNumber === "URD" || gstNumber === "URG" || gstNumber === "Unregistered" || body.isUrd === true || body.isUrg === true;
     if (!isUrg && (!gstNumber || !gstRegex.test(gstNumber.trim().toUpperCase()))) {
-      return NextResponse.json({ success: false, error: "Either a valid GST number or URG (Unregistered) selection is required" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Either a valid GST number or URD (Unregistered) selection is required" }, { status: 400 });
     }
 
     if (!locations || !Array.isArray(locations) || locations.length === 0) {
@@ -244,7 +245,13 @@ export async function POST(req) {
         routeCode: loc.routeCode || null,
         lat: itemLat,
         lng: itemLng,
-        isPrimary: index === 0
+        isPrimary: index === 0,
+        hasFssai: loc.hasFssai !== undefined ? Boolean(loc.hasFssai) : true,
+        fssaiNumber: loc.fssaiNumber?.trim() || null,
+        fssaiExpiryDate: loc.fssaiExpiryDate ? new Date(loc.fssaiExpiryDate) : null,
+        fssaiDocUrl: loc.fssaiDocUrl?.trim() || null,
+        fssaiUndertakingDocUrl: loc.fssaiUndertakingDocUrl?.trim() || null,
+        password: loc.password || null
       });
     }
 
@@ -266,6 +273,33 @@ export async function POST(req) {
       else if (existingUser.phone === phone) conflictField = "Phone number";
 
       return NextResponse.json({ success: false, error: `${conflictField} already exists` }, { status: 409 });
+    }
+
+    // Check duplicates for outlets
+    if (hasMultipleOutlets && Array.isArray(formattedLocations)) {
+      for (let i = 0; i < formattedLocations.length; i++) {
+        const loc = formattedLocations[i];
+        if (loc.isPrimary) continue;
+
+        if (!loc.contactEmail || !loc.contactPhone) {
+          return NextResponse.json({ success: false, error: `Outlet #${i} is missing required Contact Email or Phone number` }, { status: 400 });
+        }
+
+        const existingOutletUser = await Customer.findOne({
+          $or: [
+            { username: loc.contactEmail.toLowerCase().trim() },
+            { email: loc.contactEmail.toLowerCase().trim() },
+            { phone: loc.contactPhone.trim() }
+          ]
+        });
+
+        if (existingOutletUser) {
+          return NextResponse.json({
+            success: false,
+            error: `Outlet #${i} contact details (${loc.contactEmail} / ${loc.contactPhone}) already registered to another user`
+          }, { status: 409 });
+        }
+      }
     }
 
     // Hash password
@@ -336,7 +370,12 @@ export async function POST(req) {
         routeName: loc.routeName,
         routeCode: loc.routeCode,
         lat: loc.lat,
-        lng: loc.lng
+        lng: loc.lng,
+        hasFssai: loc.hasFssai,
+        fssaiNumber: loc.fssaiNumber,
+        fssaiExpiryDate: loc.fssaiExpiryDate,
+        fssaiDocUrl: loc.fssaiDocUrl,
+        fssaiUndertakingDocUrl: loc.fssaiUndertakingDocUrl
       })),
       businessName: businessName.trim(),
       gstNumber: gstNumber || null,
@@ -358,7 +397,7 @@ export async function POST(req) {
       poMandatory: poMandatory || false,
       creditTerm: Number(creditTerm || 0),
       creditLimit: Number(creditLimit || 0),
-      urcDocUrl: urcDocUrl || null,
+      urdDocUrl: urdDocUrl || urcDocUrl || null,
       hasFssai: body.hasFssai !== undefined ? Boolean(body.hasFssai) : true,
       fssaiNumber: body.fssaiNumber ? body.fssaiNumber.trim() : null,
       fssaiExpiryDate: body.fssaiExpiryDate ? new Date(body.fssaiExpiryDate) : null,
@@ -367,14 +406,31 @@ export async function POST(req) {
       licenseExpiryDate: body.licenseExpiryDate ? new Date(body.licenseExpiryDate) : null,
       supplierId: supplierId || null,
       isContractBased: Boolean(isContractBased),
-      contract: isContractBased ? {
+      contract: isContractBased && Array.isArray(contracts) && contracts.length > 0 ? {
+        contractType: contracts[0].contractType || null,
+        documentUrl: contracts[0].documentUrl || null,
+        startDate: contracts[0].startDate ? new Date(contracts[0].startDate) : null,
+        expiryDate: contracts[0].expiryDate ? new Date(contracts[0].expiryDate) : null,
+        notes: contracts[0].notes || null,
+        uploadedAt: new Date()
+      } : (isContractBased ? {
         contractType: contract?.contractType || contractType || null,
         documentUrl: contract?.documentUrl || contractDocumentUrl || null,
         startDate: contract?.startDate || contractStartDate ? new Date(contract?.startDate || contractStartDate) : null,
         expiryDate: contract?.expiryDate || contractExpiryDate ? new Date(contract?.expiryDate || contractExpiryDate) : null,
         notes: contract?.notes || contractNotes || null,
         uploadedAt: new Date()
-      } : undefined,
+      } : undefined),
+      contracts: isContractBased && Array.isArray(contracts) ? contracts.map(c => ({
+        brandId: c.brandId || null,
+        brandName: c.brandName || null,
+        contractType: c.contractType || null,
+        documentUrl: c.documentUrl || null,
+        startDate: c.startDate ? new Date(c.startDate) : null,
+        expiryDate: c.expiryDate ? new Date(c.expiryDate) : null,
+        notes: c.notes || null,
+        uploadedAt: new Date()
+      })) : [],
       lastLoginAt: new Date()
     });
 
@@ -426,6 +482,84 @@ export async function POST(req) {
       }
     } else {
       console.log(`[Email Dispatcher] Welcome email skipped for ${email} (Awaiting CCT approval)`);
+    }
+
+    // Create separate accounts for each additional outlet/branch
+    if (hasMultipleOutlets && Array.isArray(formattedLocations)) {
+      for (let i = 0; i < formattedLocations.length; i++) {
+        const loc = formattedLocations[i];
+        if (loc.isPrimary) continue;
+
+        let outletRawPassword = loc.password ? loc.password.trim() : "";
+        if (!outletRawPassword) {
+          outletRawPassword = generateSystemPassword();
+        }
+        const outletSalt = await bcrypt.genSalt(10);
+        const outletHashedPassword = await bcrypt.hash(outletRawPassword, outletSalt);
+
+        // Normalize Phone for outlet
+        const outPhone = loc.contactPhone.trim();
+        const numericOutPhone = outPhone.replace(/\D/g, "");
+        const standardizedOutPhone = (numericOutPhone.length === 10) ? `+91${numericOutPhone}` :
+          (numericOutPhone.length === 12 && numericOutPhone.startsWith("91")) ? `+${numericOutPhone}` :
+            outPhone;
+
+        const outletUser = await Customer.create({
+          isVerified: newUser.isVerified,
+          username: loc.contactEmail.toLowerCase().trim(),
+          password: outletHashedPassword,
+          email: loc.contactEmail.toLowerCase().trim(),
+          phone: standardizedOutPhone,
+          name: `${newUser.businessName} - ${loc.outletName}`,
+          businessName: newUser.businessName,
+          address: loc.address,
+          city: loc.city,
+          state: loc.state,
+          pincode: loc.pincode,
+          lat: loc.lat,
+          lng: loc.lng,
+          location: loc.lat != null && loc.lng != null ? { type: "Point", coordinates: [loc.lng, loc.lat] } : undefined,
+          gstNumber: newUser.gstNumber,
+          gstEffectiveDate: newUser.gstEffectiveDate,
+          gstDocUrl: newUser.gstDocUrl,
+          panNumber: newUser.panNumber,
+          licenseImage: newUser.licenseImage,
+          hasMultipleOutlets: false,
+          category: newUser.category,
+          customerGroup: newUser.customerGroup,
+          assignedRoute: loc.assignedRoute,
+          routeName: loc.routeName,
+          routeCode: loc.routeCode,
+          hasFssai: loc.hasFssai,
+          fssaiNumber: loc.fssaiNumber,
+          fssaiExpiryDate: loc.fssaiExpiryDate,
+          fssaiDocUrl: loc.fssaiDocUrl,
+          fssaiUndertakingDocUrl: loc.fssaiUndertakingDocUrl,
+          source: newUser.source,
+          lastLoginAt: new Date()
+        });
+
+        // Send Welcome Email to outlet email
+        if (outletUser.isVerified && loc.contactEmail) {
+          try {
+            const isUrgCustomer = newUser.gstNumber === "URD" || newUser.gstNumber === "URG" || !newUser.gstNumber;
+            await sendCustomerWelcomeEmail({
+              email: loc.contactEmail.toLowerCase().trim(),
+              name: `${newUser.businessName} - ${loc.outletName}`,
+              businessName: newUser.businessName,
+              username: loc.contactEmail.toLowerCase().trim(),
+              password: outletRawPassword,
+              gstNumber: isUrgCustomer ? "URD" : (newUser.gstNumber ? newUser.gstNumber.trim().toUpperCase() : "URD"),
+              creditTerm: Number(newUser.creditTerm || 0),
+              creditLimit: Number(newUser.creditLimit || 0),
+              customerId: outletUser._id.toString()
+            });
+            console.log(`[Email Dispatcher] Welcome email sent successfully to outlet: ${loc.contactEmail}`);
+          } catch (emailErr) {
+            console.error(`[Email Dispatcher] Failed to send welcome email to outlet ${loc.contactEmail}:`, emailErr);
+          }
+        }
+      }
     }
 
     // Create JWT

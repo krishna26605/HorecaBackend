@@ -141,7 +141,13 @@ const CustomerSchema = new mongoose.Schema(
       routeName: { type: String, trim: true, default: null },
       routeCode: { type: String, trim: true, default: null },
       lat: { type: Number, default: null },
-      lng: { type: Number, default: null }
+      lng: { type: Number, default: null },
+      hasFssai: { type: Boolean, default: true },
+      fssaiNumber: { type: String, default: null, trim: true },
+      fssaiExpiryDate: { type: Date, default: null },
+      fssaiDocUrl: { type: String, default: null, trim: true },
+      fssaiUndertakingDocUrl: { type: String, default: null, trim: true },
+      password: { type: String, default: null, trim: true }
     }],
 
     locations: [{
@@ -158,7 +164,13 @@ const CustomerSchema = new mongoose.Schema(
       routeCode: { type: String, trim: true, default: null },
       lat: { type: Number, default: null },
       lng: { type: Number, default: null },
-      isPrimary: { type: Boolean, default: false }
+      isPrimary: { type: Boolean, default: false },
+      hasFssai: { type: Boolean, default: true },
+      fssaiNumber: { type: String, default: null, trim: true },
+      fssaiExpiryDate: { type: Date, default: null },
+      fssaiDocUrl: { type: String, default: null, trim: true },
+      fssaiUndertakingDocUrl: { type: String, default: null, trim: true },
+      password: { type: String, default: null, trim: true }
     }],
 
     supplierId: {
@@ -257,7 +269,7 @@ const CustomerSchema = new mongoose.Schema(
       default: false
     },
 
-    urcDocUrl: {
+    urdDocUrl: {
       type: String,
       default: null,
       trim: true
@@ -304,6 +316,17 @@ const CustomerSchema = new mongoose.Schema(
       notes: { type: String, default: null, trim: true },
       uploadedAt: { type: Date, default: null }
     },
+
+    contracts: [{
+      brandId: { type: mongoose.Schema.Types.ObjectId, ref: "Brand", default: null },
+      brandName: { type: String, default: null, trim: true },
+      contractType: { type: String, default: null, trim: true },
+      documentUrl: { type: String, default: null, trim: true },
+      startDate: { type: Date, default: null },
+      expiryDate: { type: Date, default: null },
+      notes: { type: String, default: null, trim: true },
+      uploadedAt: { type: Date, default: null }
+    }],
 
     lastLoginAt: {
       type: Date,
