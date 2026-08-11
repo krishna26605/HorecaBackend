@@ -285,18 +285,26 @@ export async function POST(req) {
           return NextResponse.json({ success: false, error: `Outlet #${i} is missing required Contact Email or Phone number` }, { status: 400 });
         }
 
+        const rawOutPhone = loc.contactPhone.trim();
+        const numOutPhone = rawOutPhone.replace(/\D/g, "");
+        const stdOutPhone = (numOutPhone.length === 10) ? `+91${numOutPhone}` :
+          (numOutPhone.length === 12 && numOutPhone.startsWith("91")) ? `+${numOutPhone}` :
+            rawOutPhone;
+
         const existingOutletUser = await Customer.findOne({
           $or: [
             { username: loc.contactEmail.toLowerCase().trim() },
             { email: loc.contactEmail.toLowerCase().trim() },
-            { phone: loc.contactPhone.trim() }
+            { phone: stdOutPhone },
+            { phone: rawOutPhone },
+            { phone: numOutPhone }
           ]
         });
 
         if (existingOutletUser) {
           return NextResponse.json({
             success: false,
-            error: `Outlet #${i} contact details (${loc.contactEmail} / ${loc.contactPhone}) already registered to another user`
+            error: `Outlet #${i} contact details (${loc.contactEmail} / ${loc.contactPhone}) are already registered to another account`
           }, { status: 409 });
         }
       }
@@ -714,6 +722,21 @@ export async function POST(req) {
     });
   } catch (err) {
     console.error("🔥 CUSTOMER REGISTRATION ERROR:", err);
+    if (err.code === 11000 || (err.message && err.message.includes("E11000"))) {
+      let duplicateField = "A user with these details";
+      if (err.keyPattern) {
+        const fields = Object.keys(err.keyPattern).join(", ");
+        duplicateField = `The ${fields}`;
+      } else if (err.message.includes("phone")) {
+        duplicateField = "This phone number";
+      } else if (err.message.includes("email") || err.message.includes("username")) {
+        duplicateField = "This email address";
+      }
+      return NextResponse.json(
+        { success: false, error: `${duplicateField} is already registered in the system.` },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       { success: false, error: err.message || "Internal Server Error" },
       { status: 500 }
