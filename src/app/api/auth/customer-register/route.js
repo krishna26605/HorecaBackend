@@ -569,7 +569,8 @@ export async function POST(req) {
         if (outletUser.isVerified && loc.contactEmail) {
           try {
             const isUrgCustomer = newUser.gstNumber === "URD" || newUser.gstNumber === "URG" || !newUser.gstNumber;
-            await sendCustomerWelcomeEmail({
+            console.log(`[Email Dispatcher] Sending outlet welcome email to: ${loc.contactEmail} (Outlet: ${loc.outletName})`);
+            const outMailRes = await sendCustomerWelcomeEmail({
               email: loc.contactEmail.toLowerCase().trim(),
               name: `${newUser.businessName} - ${loc.outletName}`,
               businessName: newUser.businessName,
@@ -580,10 +581,12 @@ export async function POST(req) {
               creditLimit: Number(newUser.creditLimit || 0),
               customerId: outletUser._id.toString()
             });
-            console.log(`[Email Dispatcher] Welcome email sent successfully to outlet: ${loc.contactEmail}`);
+            console.log(`[Email Dispatcher] Outlet welcome email result for ${loc.contactEmail}:`, outMailRes);
           } catch (emailErr) {
             console.error(`[Email Dispatcher] Failed to send welcome email to outlet ${loc.contactEmail}:`, emailErr);
           }
+        } else {
+          console.warn(`[Email Dispatcher] Skipped outlet email for index ${i}: isVerified=${outletUser.isVerified}, contactEmail=${loc.contactEmail}`);
         }
       }
     }

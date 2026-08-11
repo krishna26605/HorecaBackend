@@ -494,7 +494,8 @@ export async function POST(request) {
         if (o.contactEmail) {
           try {
             const isUrgCustomer = newCustomer.gstNumber === "URD" || newCustomer.gstNumber === "URG" || !newCustomer.gstNumber;
-            await sendCustomerWelcomeEmail({
+            console.log(`[Email Dispatcher] Sending manual outlet welcome email to: ${o.contactEmail}`);
+            const outMailRes = await sendCustomerWelcomeEmail({
               email: o.contactEmail.toLowerCase().trim(),
               name: `${newCustomer.businessName} - ${o.outletName}`,
               businessName: newCustomer.businessName,
@@ -505,7 +506,7 @@ export async function POST(request) {
               creditLimit: Number(newCustomer.creditLimit || 0),
               customerId: outletUser._id.toString()
             });
-            console.log(`[Email Dispatcher] Welcome email sent successfully to manual outlet: ${o.contactEmail}`);
+            console.log(`[Email Dispatcher] Manual outlet welcome email result for ${o.contactEmail}:`, outMailRes);
           } catch (emailErr) {
             console.error(`[Email Dispatcher] Failed to send welcome email to manual outlet ${o.contactEmail}:`, emailErr);
           }
