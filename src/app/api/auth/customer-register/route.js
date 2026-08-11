@@ -515,10 +515,15 @@ export async function POST(req) {
     }
 
     // Create separate accounts for each additional outlet/branch
+    const outletEmailsDispatched = [];
     if (hasMultipleOutlets && Array.isArray(formattedLocations)) {
+      console.log(`[Email Dispatcher] Found ${formattedLocations.length} locations. Processing sub-outlets...`);
       for (let i = 0; i < formattedLocations.length; i++) {
         const loc = formattedLocations[i];
-        if (loc.isPrimary) continue;
+        if (loc.isPrimary) {
+          console.log(`[Email Dispatcher] Location #${i} is primary main branch. Skipping sub-outlet creation.`);
+          continue;
+        }
 
         let outletRawPassword = loc.password ? loc.password.trim() : "";
         if (!outletRawPassword) {
@@ -533,6 +538,8 @@ export async function POST(req) {
         const standardizedOutPhone = (numericOutPhone.length === 10) ? `+91${numericOutPhone}` :
           (numericOutPhone.length === 12 && numericOutPhone.startsWith("91")) ? `+${numericOutPhone}` :
             outPhone;
+
+        console.log(`[Sub-Outlet Creation] Creating sub-outlet customer record for: ${loc.outletName} (${loc.contactEmail})`);
 
         const outletUser = await Customer.create({
           isVerified: newUser.isVerified,
@@ -574,10 +581,10 @@ export async function POST(req) {
         });
 
         // Send Welcome Email to outlet email
-        if (outletUser.isVerified && loc.contactEmail) {
+        if (loc.contactEmail) {
           try {
             const isUrgCustomer = newUser.gstNumber === "URD" || newUser.gstNumber === "URG" || !newUser.gstNumber;
-            console.log(`[Email Dispatcher] Sending outlet welcome email to: ${loc.contactEmail} (Outlet: ${loc.outletName})`);
+            console.log(`🚀 [Email Dispatcher] DISPATCHING SUB-OUTLET WELCOME EMAIL to: ${loc.contactEmail} (Outlet: ${loc.outletName})`);
             const outMailRes = await sendCustomerWelcomeEmail({
               email: loc.contactEmail.toLowerCase().trim(),
               name: `${newUser.businessName} - ${loc.outletName}`,
@@ -589,12 +596,14 @@ export async function POST(req) {
               creditLimit: Number(newUser.creditLimit || 0),
               customerId: outletUser._id.toString()
             });
-            console.log(`[Email Dispatcher] Outlet welcome email result for ${loc.contactEmail}:`, outMailRes);
+            console.log(`✅ [Email Dispatcher] Sub-outlet email response for ${loc.contactEmail}:`, outMailRes);
+            outletEmailsDispatched.push({ email: loc.contactEmail, outletName: loc.outletName, success: outMailRes?.success, messageId: outMailRes?.messageId, error: outMailRes?.error });
           } catch (emailErr) {
-            console.error(`[Email Dispatcher] Failed to send welcome email to outlet ${loc.contactEmail}:`, emailErr);
+            console.error(`❌ [Email Dispatcher] Failed to send welcome email to sub-outlet ${loc.contactEmail}:`, emailErr);
+            outletEmailsDispatched.push({ email: loc.contactEmail, outletName: loc.outletName, success: false, error: emailErr.message || String(emailErr) });
           }
         } else {
-          console.warn(`[Email Dispatcher] Skipped outlet email for index ${i}: isVerified=${outletUser.isVerified}, contactEmail=${loc.contactEmail}`);
+          console.warn(`⚠️ [Email Dispatcher] Skipped sub-outlet email for index ${i}: No contactEmail provided on loc object`);
         }
       }
     }
@@ -613,8 +622,8 @@ export async function POST(req) {
 
     try {
       const xmlPayload = buildCustomerXML(newUser);
-      console.log(`[Tally Sync Register] Sending POST to Tally at URL: ${tallyUrl}`);
-      console.log(`[Tally Sync Register] Generated XML Payload:\n${xmlPayload}`);
+      console.log(`[Tally Sync] Sending POST to Tally at URL: ${tallyUrl}`);
+      console.log(`[Tally Sync] Generated XML Payload:\n${xmlPayload}`);
 
       const tallyResponse = await fetch(tallyUrl, {
         method: 'POST',
@@ -625,14 +634,14 @@ export async function POST(req) {
         body: xmlPayload
       });
 
-      console.log(`[Tally Sync Register] Received response from Tally. Status: ${tallyResponse.status} ${tallyResponse.statusText}`);
+      console.log(`[Tally Sync] Received response from Tally. Status: ${tallyResponse.status} ${tallyResponse.statusText}`);
 
       if (tallyResponse.ok) {
         const responseText = await tallyResponse.text();
-        console.log(`[Tally Sync Register] Raw Tally Response Text:\n${responseText}`);
+        console.log(`[Tally Sync] Raw Tally Response Text:\n${responseText}`);
 
         const parsed = parseTallyResponse(responseText);
-        console.log(`[Tally Sync Register] Parsed Response Success:`, parsed.success);
+        console.log(`[Tally Sync] Parsed Response Success:`, parsed.success);
 
         if (parsed.success) {
           tallyCustomerSynced = true;
@@ -709,6 +718,7 @@ export async function POST(req) {
         emailSent: mailResult?.success || false,
         emailError: mailResult?.error || null,
         emailMessageId: mailResult?.messageId || null,
+        outletEmailsDispatched,
         user: {
           id: newUser._id,
           username: newUser.username,
