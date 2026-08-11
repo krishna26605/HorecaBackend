@@ -254,15 +254,18 @@ export async function PATCH(request, { params }) {
       }
     }
 
+    const productsToProcess = body.products;
+    delete body.products;
+
     const updated = await Supplier.findByIdAndUpdate(id, { $set: body }, { new: true, runValidators: true, context: "query" }).select("-password");
     if (!updated) return NextResponse.json({ success: false, error: "Supplier not found" }, { status: 404 });
 
     // Update or Create products in the global Product collection + Tally Sync
     const tallyProductSyncResults = [];
-    if (body.products && Array.isArray(body.products) && body.products.length > 0) {
+    if (productsToProcess && Array.isArray(productsToProcess) && productsToProcess.length > 0) {
       const tallyUrl = process.env.TALLY_URL || 'https://yummy-freebee-circular.ngrok-free.dev';
 
-      for (const p of body.products) {
+      for (const p of productsToProcess) {
         if (!p.productName || !p.productCode) continue;
 
         let finalBrandId = undefined;
@@ -290,17 +293,25 @@ export async function PATCH(request, { params }) {
           sku: p.productCode,
           brandId: finalBrandId,
           unit: p.uom || p.primaryUnit || "Kg",
+          standardUnit: p.standardUnit || null,
+          alternateUnit: p.alternateUnit || null,
           basePrice: basePriceNum,
           gst: gstNum,
+          gstEffectiveDate: p.gstEffectiveDate || null,
           assuredMargin: marginNum,
           claimMargin: Number(p.claimMargin ?? body.claimMargin ?? 0) || 0,
           hsnCode: p.hsnCode || undefined,
-          moq: Number(p.moq || 0),
-          mov: Number(p.mov || 0),
+          hsnEffectiveDate: p.hsnEffectiveDate || null,
+          stockGroup: p.stockGroupName || undefined,
+          stockGroupId: mongoose.Types.ObjectId.isValid(p.stockGroupName) ? p.stockGroupName : undefined,
+          shelfLife: p.shelfLife || null,
+          categoryPrices: {
+            A: Number(p.brandPrices?.A) || 0,
+            B: Number(p.brandPrices?.B) || 0,
+            C: Number(p.brandPrices?.C) || 0
+          },
           reorderLevel: Number(p.reorderLevel || 0),
           price: Number(computedSellingPrice.toFixed(2)),
-          poTemplateId: p.poTemplateId || undefined,
-          claimTemplateId: p.claimTemplateId || undefined,
           isColdStorage: p.isColdStorage === 'Yes' || p.isColdStorage === true,
           temperature: p.temperature || null,
           shipperDryIce: p.shipperDryIce === true || p.shipperDryIce === 'Yes',
@@ -380,6 +391,14 @@ export async function PATCH(request, { params }) {
           tallySynced: prodSynced,
           tallyError: prodError
         });
+      }
+    }
+
+    if (tallyProductSyncResults.length > 0) {
+      const createdProductIds = tallyProductSyncResults.map(p => p.productId).filter(Boolean);
+      if (createdProductIds.length > 0) {
+        await Supplier.updateOne({ _id: id }, { $set: { products: createdProductIds } });
+        updated.products = createdProductIds;
       }
     }
 

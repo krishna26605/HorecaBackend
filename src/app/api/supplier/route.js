@@ -344,6 +344,7 @@ export async function POST(request) {
     }
 
     const supplierPayload = { ...body };
+    delete supplierPayload.products;
     const objectIdFields = ["poTemplateId", "claimTemplateId", "godownIncharge", "verifiedBy"];
     for (const field of objectIdFields) {
       if (field in supplierPayload) {
@@ -462,14 +463,25 @@ export async function POST(request) {
             name: prodData.productName,
             sku: prodData.productCode,
             unit: mapUOM(prodData.uom || prodData.primaryUnit),
+            standardUnit: prodData.standardUnit || null,
+            alternateUnit: prodData.alternateUnit || null,
             price: Number(computedSellingPrice.toFixed(2)),
             basePrice: basePriceNum,
             gst: gstNum,
+            gstEffectiveDate: prodData.gstEffectiveDate || null,
             assuredMargin: marginNum,
             claimMargin: Number(prodData.claimMargin ?? supplierPayload.claimMargin ?? 0) || 0,
             hsnCode: prodData.hsnCode || undefined,
-            moq: Number(prodData.moq) || 0,
-            mov: Number(prodData.mov) || 0,
+            hsnEffectiveDate: prodData.hsnEffectiveDate || null,
+            brandId: prodData.brand || undefined,
+            stockGroup: stockGroupName || undefined,
+            stockGroupId: mongoose.Types.ObjectId.isValid(prodData.stockGroupName) ? prodData.stockGroupName : undefined,
+            shelfLife: prodData.shelfLife || null,
+            categoryPrices: {
+              A: Number(prodData.brandPrices?.A) || 0,
+              B: Number(prodData.brandPrices?.B) || 0,
+              C: Number(prodData.brandPrices?.C) || 0
+            },
             reorderLevel: Number(prodData.reorderLevel) || 0,
             images: prodData.image
               ? [{ url: prodData.image, publicId: `prod_${Date.now()}` }]
@@ -590,6 +602,11 @@ export async function POST(request) {
           });
         }
       }
+    }
+
+    if (createdProducts.length > 0) {
+      supplier.products = createdProducts.map((p) => p._id);
+      await supplier.save();
     }
 
     const safeObj = supplier.toObject();

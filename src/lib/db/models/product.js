@@ -139,6 +139,9 @@ const productSchema = new Schema({
   categoryId: { type: Schema.Types.ObjectId, ref: "Brand" },
   categoryName: { type: String, trim: true },
   subcategoryId: { type: Schema.Types.ObjectId, ref: "Brand" },
+  brandId: { type: Schema.Types.ObjectId, ref: "Brand" },
+  stockGroupId: { type: Schema.Types.ObjectId, ref: "StockGroup" },
+  stockGroup: { type: String, trim: true },
   name: { type: String, required: [true, "Product name is required"], trim: true, index: true },
   description: { type: String, trim: true },
   basePrice: { type: Number, default: 0, min: [0, "Base price cannot be negative"] },
@@ -148,12 +151,14 @@ const productSchema = new Schema({
   shelfLife: { type: String, default: null },
   price: { type: Number, default: 0, min: [0, "Price cannot be negative"] },
   gst: { type: Number, default: 0, min: [0, "GST cannot be negative"], max: [100, "GST cannot exceed 100%"] },
+  gstEffectiveDate: { type: Date, default: null },
   hsnCode: { type: String, trim: true },
+  hsnEffectiveDate: { type: Date, default: null },
   stockQuantity: { type: Number, default: 0, min: [0, "Stock quantity cannot be negative"] },
-  moq: { type: Number, default: 0 },
-  mov: { type: Number, default: 0 },
   reorderLevel: { type: Number, default: 0 },
   unit: { type: String, enum: ["kg", "g", "liters", "ml", "pcs", "box", "dozen", "pack", "ton", "Kg", "Gram", "Liter", "Ml", "Piece", "Box", "Dozen", "Pack", "Ton", "Nos", "Ltr"], default: "Kg" },
+  standardUnit: { type: String, default: null },
+  alternateUnit: { type: String, default: null },
   images: {
     type: [imageSubSchema],
     default: []
@@ -193,15 +198,6 @@ const productSchema = new Schema({
     C: { type: Number, default: 0 }
   },
   discountStartDate: { type: Date },
-  moq: { type: Number, default: 0 },
-  poTemplateId: {
-    type: Schema.Types.ObjectId,
-    ref: "POTemplate"
-  },
-  claimTemplateId: {
-    type: Schema.Types.ObjectId,
-    ref: "ClaimTemplate"
-  },
   locationId: { type: Schema.Types.ObjectId, ref: "WarehouseLocation" },
   locationName: { type: String },
   locationPath: { type: String }

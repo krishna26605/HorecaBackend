@@ -88,7 +88,7 @@ const supplierSchema = new Schema(
     },
 
     documents: { type: Array, default: [] },
-    products: { type: Array, default: [] },
+    products: [{ type: Schema.Types.ObjectId, ref: "Product" }],
 
     poTemplateId: {
       type: Schema.Types.ObjectId,
