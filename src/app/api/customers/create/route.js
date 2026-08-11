@@ -312,33 +312,14 @@ export async function POST(request) {
       creditLimit: Number(body.creditLimit || 0),
       hasMultipleOutlets: Boolean(hasMultipleOutlets),
       source: body.source || "SCM Onboarding",
-      departmentContacts: {
-        art: {
-          name: body.departmentContacts?.art?.name?.trim() || null,
-          phone: body.departmentContacts?.art?.phone?.trim() || null,
-          email: body.departmentContacts?.art?.email?.trim() || null
-        },
-        act: {
-          name: body.departmentContacts?.act?.name?.trim() || null,
-          phone: body.departmentContacts?.act?.phone?.trim() || null,
-          email: body.departmentContacts?.act?.email?.trim() || null
-        },
-        odt: {
-          name: body.departmentContacts?.odt?.name?.trim() || null,
-          phone: body.departmentContacts?.odt?.phone?.trim() || null,
-          email: body.departmentContacts?.odt?.email?.trim() || null
-        },
-        scm: {
-          name: body.departmentContacts?.scm?.name?.trim() || null,
-          phone: body.departmentContacts?.scm?.phone?.trim() || null,
-          email: body.departmentContacts?.scm?.email?.trim() || null
-        },
-        routePlanner: {
-          name: body.departmentContacts?.routePlanner?.name?.trim() || null,
-          phone: body.departmentContacts?.routePlanner?.phone?.trim() || null,
-          email: body.departmentContacts?.routePlanner?.email?.trim() || null
-        }
-      },
+      departmentContacts: Array.isArray(body.departmentContacts)
+        ? body.departmentContacts.map(dc => ({
+            name: dc.name?.trim() || null,
+            email: dc.email?.trim() || null,
+            phone: dc.phone?.trim() || null,
+            position: dc.position?.trim() || null
+          }))
+        : [],
       outlets: formattedOutlets,
       locations: [
         {

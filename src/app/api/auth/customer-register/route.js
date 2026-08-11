@@ -338,33 +338,14 @@ export async function POST(req) {
       locations: formattedLocations,
       hasMultipleOutlets: Boolean(hasMultipleOutlets),
       source: body.source || "Self-Registered",
-      departmentContacts: {
-        art: {
-          name: body.departmentContacts?.art?.name?.trim() || null,
-          phone: body.departmentContacts?.art?.phone?.trim() || null,
-          email: body.departmentContacts?.art?.email?.trim() || null
-        },
-        act: {
-          name: body.departmentContacts?.act?.name?.trim() || null,
-          phone: body.departmentContacts?.act?.phone?.trim() || null,
-          email: body.departmentContacts?.act?.email?.trim() || null
-        },
-        odt: {
-          name: body.departmentContacts?.odt?.name?.trim() || null,
-          phone: body.departmentContacts?.odt?.phone?.trim() || null,
-          email: body.departmentContacts?.odt?.email?.trim() || null
-        },
-        scm: {
-          name: body.departmentContacts?.scm?.name?.trim() || null,
-          phone: body.departmentContacts?.scm?.phone?.trim() || null,
-          email: body.departmentContacts?.scm?.email?.trim() || null
-        },
-        routePlanner: {
-          name: body.departmentContacts?.routePlanner?.name?.trim() || null,
-          phone: body.departmentContacts?.routePlanner?.phone?.trim() || null,
-          email: body.departmentContacts?.routePlanner?.email?.trim() || null
-        }
-      },
+      departmentContacts: Array.isArray(body.departmentContacts)
+        ? body.departmentContacts.map(dc => ({
+            name: dc.name?.trim() || null,
+            email: dc.email?.trim() || null,
+            phone: dc.phone?.trim() || null,
+            position: dc.position?.trim() || null
+          }))
+        : [],
       outlets: (() => {
         // Use the body's outlets array directly if provided (from multi-outlet form),
         // otherwise fall back to locations-derived formattedLocations
