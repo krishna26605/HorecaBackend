@@ -443,6 +443,16 @@ export async function POST(req) {
             uploadedAt: new Date()
           }))
         : [],
+      // brandContacts — brand-wise contacts array
+      brandContacts: Array.isArray(body.brandContacts)
+        ? body.brandContacts.map(bc => ({
+            brandId: bc.brandId || null,
+            brandName: bc.brandName || null,
+            contactName: bc.contactName || null,
+            contactPhone: bc.contactPhone || null,
+            contactEmail: bc.contactEmail || null
+          }))
+        : [],
       lastLoginAt: new Date()
     });
 
@@ -461,8 +471,8 @@ export async function POST(req) {
     if (newUser.isVerified) {
       try {
         if (email) {
-          const isUrgCustomer = body.isUrg || gstNumber === "URG" || gstNumber === "Unregistered" || !gstNumber;
-          console.log(`[Email Dispatcher] Attempting welcome email for ${email} (URG: ${isUrgCustomer})`);
+          const isUrgCustomer = body.isUrd || body.isUrg || gstNumber === "URD" || gstNumber === "URG" || gstNumber === "Unregistered" || !gstNumber;
+          console.log(`[Email Dispatcher] Attempting welcome email for ${email} (URD: ${isUrgCustomer})`);
 
           mailResult = await sendCustomerWelcomeEmail({
             email: email.trim(),
@@ -470,7 +480,7 @@ export async function POST(req) {
             businessName: businessName.trim(),
             username: username.trim(),
             password: finalPassword,
-            gstNumber: isUrgCustomer ? "URG" : (gstNumber ? gstNumber.trim().toUpperCase() : "URG"),
+            gstNumber: isUrgCustomer ? "URD" : (gstNumber ? gstNumber.trim().toUpperCase() : "URD"),
             creditTerm: Number(creditTerm || 0),
             creditLimit: Number(creditLimit || 0),
             customerId: newUser._id.toString()

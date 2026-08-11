@@ -151,18 +151,18 @@ const CustomerSchema = new mongoose.Schema(
       state: { type: String, trim: true },
       pincode: { type: String, trim: true },
       contactPerson: { type: String, trim: true, default: null },
-      contactPhone: { type: String, trim: true, default: null },
-      contactEmail: { type: String, trim: true, default: null },
+      contactPhone: { type: String, trim: true, required: true },
+      contactEmail: { type: String, trim: true, required: true },
       assignedRoute: { type: mongoose.Schema.Types.ObjectId, ref: "RouteMaster", default: null },
       routeName: { type: String, trim: true, default: null },
       routeCode: { type: String, trim: true, default: null },
       lat: { type: Number, default: null },
       lng: { type: Number, default: null },
       hasFssai: { type: Boolean, default: true },
-      fssaiNumber: { type: String, default: null, trim: true },
-      fssaiExpiryDate: { type: Date, default: null },
-      fssaiDocUrl: { type: String, default: null, trim: true },
-      fssaiUndertakingDocUrl: { type: String, default: null, trim: true },
+      fssaiNumber: { type: String, default: null, trim: true, required: function(){ return this.hasFssai; } },
+      fssaiExpiryDate: { type: Date, default: null, required: function(){ return this.hasFssai; } },
+      fssaiDocUrl: { type: String, default: null, trim: true, required: function(){ return this.hasFssai; } },
+      fssaiUndertakingDocUrl: { type: String, default: null, trim: true, required: function(){ return this.hasFssai; } },
       password: { type: String, default: null, trim: true }
     }],
 
@@ -354,7 +354,15 @@ const CustomerSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: null
-    }
+    },
+    // New field: brandContacts array
+    brandContacts: [{
+      brandId: { type: mongoose.Schema.Types.ObjectId, ref: "Brand", default: null },
+      brandName: { type: String, default: null, trim: true },
+      contactName: { type: String, default: null, trim: true },
+      contactPhone: { type: String, default: null, trim: true, required: true },
+      contactEmail: { type: String, default: null, trim: true, required: true }
+    }]
   },
   {
     timestamps: true,
