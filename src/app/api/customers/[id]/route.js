@@ -17,7 +17,7 @@ export async function PATCH(req, { params }) {
 
     const { mappedProducts, ...customerUpdates } = body;
 
-    const allowedUpdates = ["isVerified", "category", "customerGroup", "customerType", "department", "hasMultipleOutlets", "outlets", "locations", "poMandatory", "isContractBased", "contract", "address", "city", "state", "pincode", "name", "phone", "email", "businessName", "gstNumber", "gstEffectiveDate", "gstDocUrl", "panNumber", "licenseImage", "creditTerm", "creditLimit", "urcDocUrl", "hasFssai", "fssaiNumber", "fssaiExpiryDate", "fssaiDocUrl", "fssaiUndertakingDocUrl", "licenseExpiryDate", "assignedRoute", "routeName", "routeCode", "advanceBalance", "advancePaymentMode", "advancePaymentProofUrl"];
+    const allowedUpdates = ["isVerified", "category", "customerGroup", "customerType", "department", "hasMultipleOutlets", "outlets", "locations", "poMandatory", "isContractBased", "contract", "address", "city", "state", "pincode", "name", "phone", "email", "businessName", "gstNumber", "gstEffectiveDate", "gstDocUrl", "panNumber", "licenseImage", "creditTerm", "creditLimit", "urcDocUrl", "hasFssai", "fssaiNumber", "fssaiExpiryDate", "fssaiDocUrl", "fssaiUndertakingDocUrl", "licenseExpiryDate", "assignedRoute", "routeName", "routeCode", "advanceBalance", "advancePaymentMode", "advancePaymentProofUrl", "departmentContacts", "vehicleRequired", "shipperDryIce", "source"];
     const updates = {};
 
     Object.keys(customerUpdates).forEach((key) => {

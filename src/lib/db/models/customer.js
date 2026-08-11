@@ -116,33 +116,12 @@ const CustomerSchema = new mongoose.Schema(
       trim: true
     },
 
-    departmentContacts: {
-      art: {
-        name: { type: String, trim: true, default: null },
-        phone: { type: String, trim: true, default: null },
-        email: { type: String, trim: true, default: null }
-      },
-      act: {
-        name: { type: String, trim: true, default: null },
-        phone: { type: String, trim: true, default: null },
-        email: { type: String, trim: true, default: null }
-      },
-      odt: {
-        name: { type: String, trim: true, default: null },
-        phone: { type: String, trim: true, default: null },
-        email: { type: String, trim: true, default: null }
-      },
-      scm: {
-        name: { type: String, trim: true, default: null },
-        phone: { type: String, trim: true, default: null },
-        email: { type: String, trim: true, default: null }
-      },
-      routePlanner: {
-        name: { type: String, trim: true, default: null },
-        phone: { type: String, trim: true, default: null },
-        email: { type: String, trim: true, default: null }
-      }
-    },
+    departmentContacts: [{
+      name: { type: String, trim: true, default: null },
+      email: { type: String, trim: true, default: null },
+      phone: { type: String, trim: true, default: null },
+      position: { type: String, trim: true, default: null }
+    }],
 
     outlets: [{
       outletName: { type: String, trim: true },

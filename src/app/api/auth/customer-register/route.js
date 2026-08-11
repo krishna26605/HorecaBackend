@@ -285,18 +285,26 @@ export async function POST(req) {
           return NextResponse.json({ success: false, error: `Outlet #${i} is missing required Contact Email or Phone number` }, { status: 400 });
         }
 
+        const rawOutPhone = loc.contactPhone.trim();
+        const numOutPhone = rawOutPhone.replace(/\D/g, "");
+        const stdOutPhone = (numOutPhone.length === 10) ? `+91${numOutPhone}` :
+          (numOutPhone.length === 12 && numOutPhone.startsWith("91")) ? `+${numOutPhone}` :
+            rawOutPhone;
+
         const existingOutletUser = await Customer.findOne({
           $or: [
             { username: loc.contactEmail.toLowerCase().trim() },
             { email: loc.contactEmail.toLowerCase().trim() },
-            { phone: loc.contactPhone.trim() }
+            { phone: stdOutPhone },
+            { phone: rawOutPhone },
+            { phone: numOutPhone }
           ]
         });
 
         if (existingOutletUser) {
           return NextResponse.json({
             success: false,
-            error: `Outlet #${i} contact details (${loc.contactEmail} / ${loc.contactPhone}) already registered to another user`
+            error: `Outlet #${i} contact details (${loc.contactEmail} / ${loc.contactPhone}) are already registered to another account`
           }, { status: 409 });
         }
       }
@@ -330,33 +338,14 @@ export async function POST(req) {
       locations: formattedLocations,
       hasMultipleOutlets: Boolean(hasMultipleOutlets),
       source: body.source || "Self-Registered",
-      departmentContacts: {
-        art: {
-          name: body.departmentContacts?.art?.name?.trim() || null,
-          phone: body.departmentContacts?.art?.phone?.trim() || null,
-          email: body.departmentContacts?.art?.email?.trim() || null
-        },
-        act: {
-          name: body.departmentContacts?.act?.name?.trim() || null,
-          phone: body.departmentContacts?.act?.phone?.trim() || null,
-          email: body.departmentContacts?.act?.email?.trim() || null
-        },
-        odt: {
-          name: body.departmentContacts?.odt?.name?.trim() || null,
-          phone: body.departmentContacts?.odt?.phone?.trim() || null,
-          email: body.departmentContacts?.odt?.email?.trim() || null
-        },
-        scm: {
-          name: body.departmentContacts?.scm?.name?.trim() || null,
-          phone: body.departmentContacts?.scm?.phone?.trim() || null,
-          email: body.departmentContacts?.scm?.email?.trim() || null
-        },
-        routePlanner: {
-          name: body.departmentContacts?.routePlanner?.name?.trim() || null,
-          phone: body.departmentContacts?.routePlanner?.phone?.trim() || null,
-          email: body.departmentContacts?.routePlanner?.email?.trim() || null
-        }
-      },
+      departmentContacts: Array.isArray(body.departmentContacts)
+        ? body.departmentContacts.map(dc => ({
+            name: dc.name?.trim() || null,
+            email: dc.email?.trim() || null,
+            phone: dc.phone?.trim() || null,
+            position: dc.position?.trim() || null
+          }))
+        : [],
       outlets: (() => {
         // Use the body's outlets array directly if provided (from multi-outlet form),
         // otherwise fall back to locations-derived formattedLocations
@@ -507,10 +496,15 @@ export async function POST(req) {
     }
 
     // Create separate accounts for each additional outlet/branch
+    const outletEmailsDispatched = [];
     if (hasMultipleOutlets && Array.isArray(formattedLocations)) {
+      console.log(`[Email Dispatcher] Found ${formattedLocations.length} locations. Processing sub-outlets...`);
       for (let i = 0; i < formattedLocations.length; i++) {
         const loc = formattedLocations[i];
-        if (loc.isPrimary) continue;
+        if (loc.isPrimary) {
+          console.log(`[Email Dispatcher] Location #${i} is primary main branch. Skipping sub-outlet creation.`);
+          continue;
+        }
 
         let outletRawPassword = loc.password ? loc.password.trim() : "";
         if (!outletRawPassword) {
@@ -525,6 +519,8 @@ export async function POST(req) {
         const standardizedOutPhone = (numericOutPhone.length === 10) ? `+91${numericOutPhone}` :
           (numericOutPhone.length === 12 && numericOutPhone.startsWith("91")) ? `+${numericOutPhone}` :
             outPhone;
+
+        console.log(`[Sub-Outlet Creation] Creating sub-outlet customer record for: ${loc.outletName} (${loc.contactEmail})`);
 
         const outletUser = await Customer.create({
           isVerified: newUser.isVerified,
@@ -566,10 +562,11 @@ export async function POST(req) {
         });
 
         // Send Welcome Email to outlet email
-        if (outletUser.isVerified && loc.contactEmail) {
+        if (loc.contactEmail) {
           try {
             const isUrgCustomer = newUser.gstNumber === "URD" || newUser.gstNumber === "URG" || !newUser.gstNumber;
-            await sendCustomerWelcomeEmail({
+            console.log(`🚀 [Email Dispatcher] DISPATCHING SUB-OUTLET WELCOME EMAIL to: ${loc.contactEmail} (Outlet: ${loc.outletName})`);
+            const outMailRes = await sendCustomerWelcomeEmail({
               email: loc.contactEmail.toLowerCase().trim(),
               name: `${newUser.businessName} - ${loc.outletName}`,
               businessName: newUser.businessName,
@@ -580,10 +577,14 @@ export async function POST(req) {
               creditLimit: Number(newUser.creditLimit || 0),
               customerId: outletUser._id.toString()
             });
-            console.log(`[Email Dispatcher] Welcome email sent successfully to outlet: ${loc.contactEmail}`);
+            console.log(`✅ [Email Dispatcher] Sub-outlet email response for ${loc.contactEmail}:`, outMailRes);
+            outletEmailsDispatched.push({ email: loc.contactEmail, outletName: loc.outletName, success: outMailRes?.success, messageId: outMailRes?.messageId, error: outMailRes?.error });
           } catch (emailErr) {
-            console.error(`[Email Dispatcher] Failed to send welcome email to outlet ${loc.contactEmail}:`, emailErr);
+            console.error(`❌ [Email Dispatcher] Failed to send welcome email to sub-outlet ${loc.contactEmail}:`, emailErr);
+            outletEmailsDispatched.push({ email: loc.contactEmail, outletName: loc.outletName, success: false, error: emailErr.message || String(emailErr) });
           }
+        } else {
+          console.warn(`⚠️ [Email Dispatcher] Skipped sub-outlet email for index ${i}: No contactEmail provided on loc object`);
         }
       }
     }
@@ -602,8 +603,8 @@ export async function POST(req) {
 
     try {
       const xmlPayload = buildCustomerXML(newUser);
-      console.log(`[Tally Sync Register] Sending POST to Tally at URL: ${tallyUrl}`);
-      console.log(`[Tally Sync Register] Generated XML Payload:\n${xmlPayload}`);
+      console.log(`[Tally Sync] Sending POST to Tally at URL: ${tallyUrl}`);
+      console.log(`[Tally Sync] Generated XML Payload:\n${xmlPayload}`);
 
       const tallyResponse = await fetch(tallyUrl, {
         method: 'POST',
@@ -614,14 +615,14 @@ export async function POST(req) {
         body: xmlPayload
       });
 
-      console.log(`[Tally Sync Register] Received response from Tally. Status: ${tallyResponse.status} ${tallyResponse.statusText}`);
+      console.log(`[Tally Sync] Received response from Tally. Status: ${tallyResponse.status} ${tallyResponse.statusText}`);
 
       if (tallyResponse.ok) {
         const responseText = await tallyResponse.text();
-        console.log(`[Tally Sync Register] Raw Tally Response Text:\n${responseText}`);
+        console.log(`[Tally Sync] Raw Tally Response Text:\n${responseText}`);
 
         const parsed = parseTallyResponse(responseText);
-        console.log(`[Tally Sync Register] Parsed Response Success:`, parsed.success);
+        console.log(`[Tally Sync] Parsed Response Success:`, parsed.success);
 
         if (parsed.success) {
           tallyCustomerSynced = true;
@@ -698,6 +699,7 @@ export async function POST(req) {
         emailSent: mailResult?.success || false,
         emailError: mailResult?.error || null,
         emailMessageId: mailResult?.messageId || null,
+        outletEmailsDispatched,
         user: {
           id: newUser._id,
           username: newUser.username,
@@ -711,6 +713,21 @@ export async function POST(req) {
     });
   } catch (err) {
     console.error("🔥 CUSTOMER REGISTRATION ERROR:", err);
+    if (err.code === 11000 || (err.message && err.message.includes("E11000"))) {
+      let duplicateField = "A user with these details";
+      if (err.keyPattern) {
+        const fields = Object.keys(err.keyPattern).join(", ");
+        duplicateField = `The ${fields}`;
+      } else if (err.message.includes("phone")) {
+        duplicateField = "This phone number";
+      } else if (err.message.includes("email") || err.message.includes("username")) {
+        duplicateField = "This email address";
+      }
+      return NextResponse.json(
+        { success: false, error: `${duplicateField} is already registered in the system.` },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       { success: false, error: err.message || "Internal Server Error" },
       { status: 500 }
