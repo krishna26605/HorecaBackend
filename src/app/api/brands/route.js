@@ -12,6 +12,54 @@ import Product from "@/lib/db/models/product"; // optional if you later want to 
 export async function GET(request) {
   await dbConnect();
   try {
+    // Sync Stock Categories from Tally Prime 9 into Brand collection
+    try {
+      const tallyUrl = process.env.TALLY_URL || 'https://yummy-freebee-circular.ngrok-free.dev';
+      const xmlPayload = `<ENVELOPE>
+  <HEADER>
+    <VERSION>1</VERSION>
+    <TALLYREQUEST>EXPORT</TALLYREQUEST>
+    <TYPE>COLLECTION</TYPE>
+    <ID>Stock Category</ID>
+  </HEADER>
+  <BODY>
+    <DESC>
+      <STATICVARIABLES>
+        <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+      </STATICVARIABLES>
+      <FETCH>NAME,PARENT</FETCH>
+    </DESC>
+  </BODY>
+</ENVELOPE>`;
+
+      const tallyRes = await fetch(tallyUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/xml", "ngrok-skip-browser-warning": "true" },
+        body: xmlPayload
+      });
+
+      if (tallyRes.ok) {
+        const xmlText = await tallyRes.text();
+        const matches = xmlText.match(/<STOCKCATEGORY NAME="([^"]+)"/g) || [];
+        const names = matches.map(m => m.replace('<STOCKCATEGORY NAME="', '').replace('"', '').trim());
+
+        const validNames = names.filter(n => n && n !== "Primary");
+        for (const catName of validNames) {
+          await Brand.findOneAndUpdate(
+            { name: catName },
+            { $set: { name: catName, isActive: true } },
+            { upsert: true, new: true }
+          );
+        }
+        if (validNames.length > 0) {
+          await Brand.deleteMany({ name: { $nin: validNames } });
+        }
+      }
+    } catch (tallyErr) {
+      console.warn("Tally Stock Category sync error in GET /api/brands:", tallyErr.message);
+    }
+
     const url = new URL(request.url);
     const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
     const limit = Math.min(100, parseInt(url.searchParams.get("limit") || "50", 10));
@@ -116,7 +164,55 @@ export async function POST(request) {
       updatedAt: newBrand.updatedAt,
     };
 
-    return NextResponse.json({ success: true, data: result }, { status: 201 });
+    // Sync to Tally Prime 9 as Stock Category
+    let tallySynced = false;
+    let tallyError = null;
+
+    try {
+      const tallyUrl = process.env.TALLY_URL || 'https://yummy-freebee-circular.ngrok-free.dev';
+      const parentName = parentInfo ? parentInfo.name : null;
+
+      const escapeXML = (str) => !str ? "" : String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+      const safeName = escapeXML(name);
+      const safeParent = parentName ? escapeXML(parentName) : null;
+
+      const xmlPayload = `<ENVELOPE>
+  <HEADER><TALLYREQUEST>Import Data</TALLYREQUEST></HEADER>
+  <BODY>
+    <IMPORTDATA>
+      <REQUESTDESC>
+        <REPORTNAME>All Masters</REPORTNAME>
+        <STATICVARIABLES><SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY></STATICVARIABLES>
+      </REQUESTDESC>
+      <REQUESTDATA>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <STOCKCATEGORY NAME="${safeName}" ACTION="Create">
+            <NAME>${safeName}</NAME>
+            ${safeParent ? `<PARENT>${safeParent}</PARENT>` : ''}
+          </STOCKCATEGORY>
+        </TALLYMESSAGE>
+      </REQUESTDATA>
+    </IMPORTDATA>
+  </BODY>
+</ENVELOPE>`;
+
+      const tallyResponse = await fetch(tallyUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/xml', 'ngrok-skip-browser-warning': 'true' },
+        body: xmlPayload
+      });
+
+      if (tallyResponse.ok) {
+        const responseText = await tallyResponse.text();
+        if (responseText.includes("<CREATED>1</CREATED>") || responseText.includes("<ALTERED>1</ALTERED>")) {
+          tallySynced = true;
+        }
+      }
+    } catch (tallyErr) {
+      console.error("[Tally Sync] Error syncing category/brand to Tally:", tallyErr);
+    }
+
+    return NextResponse.json({ success: true, data: result, tallySynced }, { status: 201 });
   } catch (err) {
     console.error("POST /api/brands error", err);
     if (err && err.name === "ValidationError") {

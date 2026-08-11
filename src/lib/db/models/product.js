@@ -148,9 +148,11 @@ const productSchema = new Schema({
   shelfLife: { type: String, default: null },
   price: { type: Number, default: 0, min: [0, "Price cannot be negative"] },
   gst: { type: Number, default: 0, min: [0, "GST cannot be negative"], max: [100, "GST cannot exceed 100%"] },
+  hsnCode: { type: String, trim: true },
   stockQuantity: { type: Number, default: 0, min: [0, "Stock quantity cannot be negative"] },
   moq: { type: Number, default: 0 },
   mov: { type: Number, default: 0 },
+  reorderLevel: { type: Number, default: 0 },
   unit: { type: String, enum: ["kg", "g", "liters", "ml", "pcs", "box", "dozen", "pack", "ton", "Kg", "Gram", "Liter", "Ml", "Piece", "Box", "Dozen", "Pack", "Ton", "Nos", "Ltr"], default: "Kg" },
   images: {
     type: [imageSubSchema],
@@ -158,6 +160,8 @@ const productSchema = new Schema({
   },
   isColdStorage: { type: Boolean, default: false },
   temperature: { type: String, default: null },
+  shipperDryIce: { type: Boolean, default: false },
+  reeferVehicleReq: { type: Boolean, default: false },
   isActive: { type: Boolean, default: true },
   discountedPrice: {
     type: Number,
@@ -189,7 +193,7 @@ const productSchema = new Schema({
     C: { type: Number, default: 0 }
   },
   discountStartDate: { type: Date },
-  discountEndDate: { type: Date },
+  moq: { type: Number, default: 0 },
   poTemplateId: {
     type: Schema.Types.ObjectId,
     ref: "POTemplate"

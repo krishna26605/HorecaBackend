@@ -447,6 +447,13 @@ export async function POST(request) {
 
           let stockGroupName = prodData.stockGroupName || "";
 
+          // Calculate Selling Price with Base Price + GST + Selling Margin
+          const basePriceNum = Number(prodData.basePrice) || 0;
+          const gstNum = Number(prodData.gst ?? 18) || 0;
+          const marginNum = Number(prodData.assuredMargin ?? supplierPayload.sellingMargin ?? 0) || 0;
+          const costWithGst = basePriceNum + (basePriceNum * gstNum / 100);
+          const computedSellingPrice = costWithGst + (costWithGst * marginNum / 100);
+
           // Map and save to MongoDB
           const productPayload = {
             supplierId: supplier._id,
@@ -454,15 +461,23 @@ export async function POST(request) {
             categoryName: categoryName,
             name: prodData.productName,
             sku: prodData.productCode,
-            unit: mapUOM(prodData.uom),
-            price: Number(prodData.basePrice) || 0,
-            basePrice: Number(prodData.basePrice) || 0,
-            assuredMargin: Number(prodData.assuredMargin) || 0,
+            unit: mapUOM(prodData.uom || prodData.primaryUnit),
+            price: Number(computedSellingPrice.toFixed(2)),
+            basePrice: basePriceNum,
+            gst: gstNum,
+            assuredMargin: marginNum,
+            claimMargin: Number(prodData.claimMargin ?? supplierPayload.claimMargin ?? 0) || 0,
+            hsnCode: prodData.hsnCode || undefined,
+            moq: Number(prodData.moq) || 0,
+            mov: Number(prodData.mov) || 0,
+            reorderLevel: Number(prodData.reorderLevel) || 0,
             images: prodData.image
               ? [{ url: prodData.image, publicId: `prod_${Date.now()}` }]
               : [{ url: "https://res.cloudinary.com/dqfum2awz/image/upload/v1717900000/placeholder.png", publicId: "placeholder" }],
             isColdStorage: prodData.isColdStorage === true || prodData.isColdStorage === 'Yes',
             temperature: prodData.temperature || null,
+            shipperDryIce: prodData.shipperDryIce === true || prodData.shipperDryIce === 'Yes',
+            reeferVehicleReq: prodData.reeferVehicleReq === true || prodData.reeferVehicleReq === 'Yes',
             isActive: true
           };
 
