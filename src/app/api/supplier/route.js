@@ -475,7 +475,7 @@ export async function POST(request) {
             hsnEffectiveDate: prodData.hsnEffectiveDate || null,
             brandId: prodData.brand || undefined,
             stockGroup: stockGroupName || undefined,
-            stockGroupId: mongoose.Types.ObjectId.isValid(prodData.stockGroupName) ? prodData.stockGroupName : undefined,
+            stockGroupId: mongoose.Types.ObjectId.isValid(prodData.stockGroup) ? prodData.stockGroup : undefined,
             shelfLife: prodData.shelfLife || null,
             categoryPrices: {
               A: Number(prodData.brandPrices?.A) || 0,

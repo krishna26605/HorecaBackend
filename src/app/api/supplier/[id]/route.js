@@ -303,7 +303,7 @@ export async function PATCH(request, { params }) {
           hsnCode: p.hsnCode || undefined,
           hsnEffectiveDate: p.hsnEffectiveDate || null,
           stockGroup: p.stockGroupName || undefined,
-          stockGroupId: mongoose.Types.ObjectId.isValid(p.stockGroupName) ? p.stockGroupName : undefined,
+          stockGroupId: mongoose.Types.ObjectId.isValid(p.stockGroup) ? p.stockGroup : undefined,
           shelfLife: p.shelfLife || null,
           categoryPrices: {
             A: Number(p.brandPrices?.A) || 0,
