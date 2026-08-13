@@ -261,18 +261,37 @@ export async function POST(req) {
 
     await dbConnect();
 
+    // Normalize Phone before checking duplicates
+    const numericPhone = phone.replace(/\D/g, "");
+    const standardizedPhone = (numericPhone.length === 10) ? `+91${numericPhone}` :
+      (numericPhone.length === 12 && numericPhone.startsWith("91")) ? `+${numericPhone}` :
+        phone.trim();
+
     // Check if user already exists
+    const cleanEmail = email.toLowerCase().trim();
     const existingUser = await Customer.findOne({
-      $or: [{ username }, { email }, { phone }]
+      $or: [
+        { username: cleanEmail },
+        { email: cleanEmail },
+        { phone: standardizedPhone },
+        { phone: phone.trim() },
+        { phone: numericPhone }
+      ]
     });
 
     if (existingUser) {
-      let conflictField = "User";
-      if (existingUser.username === username) conflictField = "Username";
-      else if (existingUser.email === email) conflictField = "Email";
-      else if (existingUser.phone === phone) conflictField = "Phone number";
+      let conflictField = "Customer account";
+      if (existingUser.username === cleanEmail || existingUser.email === cleanEmail) {
+        conflictField = `Email address (${cleanEmail})`;
+      } else if (
+        existingUser.phone === standardizedPhone ||
+        existingUser.phone === phone.trim() ||
+        existingUser.phone === numericPhone
+      ) {
+        conflictField = `Phone number (${standardizedPhone})`;
+      }
 
-      return NextResponse.json({ success: false, error: `${conflictField} already exists` }, { status: 409 });
+      return NextResponse.json({ success: false, error: `${conflictField} is already registered in the system.` }, { status: 409 });
     }
 
     // Check duplicates for outlets
@@ -314,11 +333,6 @@ export async function POST(req) {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(finalPassword, salt);
 
-    // Normalize Phone
-    const numericPhone = phone.replace(/\D/g, "");
-    const standardizedPhone = (numericPhone.length === 10) ? `+91${numericPhone}` :
-      (numericPhone.length === 12 && numericPhone.startsWith("91")) ? `+${numericPhone}` :
-        phone.trim();
 
     // Create user
     const newUser = await Customer.create({
