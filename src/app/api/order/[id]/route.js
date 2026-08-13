@@ -154,6 +154,55 @@ export async function PATCH(request, { params }) {
       }
     }
 
+    // 🔄 TALLY SYNC FOR ART APPROVAL (Convert Optional to Regular)
+    if (orderStatusLower === "accepted" && order.tallySynced) {
+      try {
+        const tallyUrl = process.env.TALLY_URL;
+        const tallyCompany = process.env.TALLY_SALES_COMPANY || 'Unifoods';
+        if (tallyUrl) {
+          const { buildTallySalesVoucherXML, fetchTallyDebtors, findMatchingTallyLedger } = await import("@/lib/tallyHelpers");
+          
+          const freshOrder = await Order.findById(order._id);
+          const productIds = freshOrder.items.map(i => i.product || i.productId).filter(Boolean);
+          const Product = (await import("@/lib/db/models/product")).default;
+          const products = await Product.find({ _id: { $in: productIds } });
+          const productMap = {};
+          products.forEach(p => { productMap[p._id.toString()] = p; });
+
+          const Customer = (await import("@/lib/db/models/customer")).default;
+          const User = (await import("@/lib/db/models/User")).default;
+          let userDoc = await Customer.findById(freshOrder.user);
+          if (!userDoc) userDoc = await User.findById(freshOrder.user);
+
+          const tallyLedgers = await fetchTallyDebtors(tallyUrl, tallyCompany, "Sundry Debtors");
+          const matchedLedger = findMatchingTallyLedger(tallyLedgers, userDoc, freshOrder);
+
+          // Force isOptional to false to convert it into a regular Sales Voucher
+          const alterXml = buildTallySalesVoucherXML(freshOrder, productMap, tallyCompany, userDoc, matchedLedger, {
+            isOptional: false,
+            isAlter: true,
+            remoteId: freshOrder._id.toString()
+          });
+
+          // Run asynchronously
+          fetch(tallyUrl, {
+            method: "POST",
+            headers: { 
+              "Content-Type": "text/xml",
+              "ngrok-skip-browser-warning": "true" 
+            },
+            body: alterXml,
+          }).then(res => res.text()).then(text => {
+            console.log(`[Tally Sync] ART Approval: Converted order ${freshOrder.orderNumber} to regular Sales Voucher.`, text);
+          }).catch(err => {
+            console.error(`[Tally Sync] ART Approval: Failed to convert order ${freshOrder.orderNumber}`, err);
+          });
+        }
+      } catch (tallyErr) {
+        console.error("Error syncing ART approval to Tally:", tallyErr);
+      }
+    }
+
     // INTERCEPT VENDOR INVOICE SUBMISSION: Update PO timeline only (do not complete yet)
     // Only intercept if it has an orderNumber (which POs have)
     if (body.invoice && body.invoice.invoiceNumber && order.orderNumber) {

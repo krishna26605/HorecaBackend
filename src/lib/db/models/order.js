@@ -19,9 +19,12 @@ const ORDER_STATUSES = [
   "pending",
   "processing",
   "confirmed",
+  "Packaging",
+  "packaging",
   "packed",
   "shipped",
-  "out_for_x`very",
+  "out_for_delivery",
+  "out_for_x`very", // Keep typo for backwards compatibility just in case
   "delivered",
   "cancelled",
   "returned",
