@@ -4,7 +4,7 @@ import Order from "@/lib/db/models/order";
 import Product from "@/lib/db/models/product";
 import Customer from "@/lib/db/models/customer";
 import User from "@/lib/db/models/User";
-import Department from "@/lib/db/models/department";
+import Department from "@/lib/db/models/Department";
 import { 
   buildTallyDeleteVoucherXML, 
   buildTallySalesVoucherXML,
