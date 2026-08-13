@@ -472,7 +472,12 @@ export async function POST(req) {
             gstNumber: isUrgCustomer ? "URD" : (gstNumber ? gstNumber.trim().toUpperCase() : "URD"),
             creditTerm: Number(creditTerm || 0),
             creditLimit: Number(creditLimit || 0),
-            customerId: newUser._id.toString()
+            customerId: newUser._id.toString(),
+            address: primaryLocation ? `${primaryLocation.address}, ${primaryLocation.city}, ${primaryLocation.state} - ${primaryLocation.pincode}` : (newUser.address || ""),
+            phone: standardizedPhone,
+            outlets: newUser.outlets || outlets || [],
+            fssaiNumber: body.fssaiNumber || newUser.fssaiNumber || (formattedLocations && formattedLocations[0] ? formattedLocations[0].fssaiNumber : null),
+            departmentContacts: newUser.departmentContacts || []
           });
 
           console.log(`[Email Notification Result] Success: ${mailResult?.success} | MessageId: ${mailResult?.messageId} | Error: ${mailResult?.error}`);
@@ -575,7 +580,12 @@ export async function POST(req) {
               gstNumber: isUrgCustomer ? "URD" : (newUser.gstNumber ? newUser.gstNumber.trim().toUpperCase() : "URD"),
               creditTerm: Number(newUser.creditTerm || 0),
               creditLimit: Number(newUser.creditLimit || 0),
-              customerId: outletUser._id.toString()
+              customerId: outletUser._id.toString(),
+              address: `${loc.address}, ${loc.city}, ${loc.state} - ${loc.pincode}`,
+              phone: loc.contactPhone || newUser.phone,
+              outlets: [],
+              fssaiNumber: loc.fssaiNumber || null,
+              departmentContacts: []
             });
             console.log(`✅ [Email Dispatcher] Sub-outlet email response for ${loc.contactEmail}:`, outMailRes);
             outletEmailsDispatched.push({ email: loc.contactEmail, outletName: loc.outletName, success: outMailRes?.success, messageId: outMailRes?.messageId, error: outMailRes?.error });
