@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db/connect";
 import Brand from "@/lib/db/models/brand";
 import Category from "@/lib/db/models/category";
+const TALLY_CONFIG = {
+  company: process.env.TALLY_SALES_COMPANY || 'Unifoods'
+};
 
 export async function GET(request) {
   await dbConnect();
@@ -19,7 +22,7 @@ export async function GET(request) {
   <BODY>
     <DESC>
       <STATICVARIABLES>
-        <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+        <SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
       </STATICVARIABLES>
       <FETCH>NAME,PARENT</FETCH>
@@ -129,7 +132,7 @@ function buildTallyXML(name, parentName) {
       <REQUESTDESC>
         <REPORTNAME>All Masters</REPORTNAME>
         <STATICVARIABLES>
-          <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+          <SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY>
         </STATICVARIABLES>
       </REQUESTDESC>
       <REQUESTDATA>

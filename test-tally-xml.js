@@ -10,7 +10,7 @@ const xmlPayload = `<ENVELOPE>
       <REQUESTDESC>
         <REPORTNAME>All Masters</REPORTNAME>
         <STATICVARIABLES>
-          <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+          <SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY>
         </STATICVARIABLES>
       </REQUESTDESC>
       <REQUESTDATA>
@@ -35,6 +35,6 @@ fetch('https://yummy-freebee-circular.ngrok-free.dev', {
   },
   body: xmlPayload
 })
-.then(res => res.text())
-.then(text => console.log('Tally Response:', text))
-.catch(err => console.error('Error:', err));
+  .then(res => res.text())
+  .then(text => console.log('Tally Response:', text))
+  .catch(err => console.error('Error:', err));

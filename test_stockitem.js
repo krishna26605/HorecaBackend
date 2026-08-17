@@ -11,7 +11,7 @@ const payload = `<ENVELOPE>
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-        <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+        <SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY>
       </STATICVARIABLES>
       <TDL>
         <TDLMESSAGE>
@@ -37,9 +37,9 @@ const req = http.request('http://localhost:9000', {
   res.on('end', () => {
     const match = xmlText.match(/<STOCKITEM NAME[^>]*>[\s\S]*?<\/STOCKITEM>/);
     if (match) {
-        console.log(match[0]);
+      console.log(match[0]);
     } else {
-        console.log("No STOCKITEM found in response. length:", xmlText.length);
+      console.log("No STOCKITEM found in response. length:", xmlText.length);
     }
   });
 });

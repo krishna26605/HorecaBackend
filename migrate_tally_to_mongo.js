@@ -2,6 +2,11 @@ const http = require('http');
 const { XMLParser } = require('fast-xml-parser');
 const mongoose = require('mongoose');
 
+const TALLY_CONFIG = {
+  company: process.env.TALLY_SALES_COMPANY || 'Unifoods'
+};
+
+
 // Need to dynamically import models since they might be ES modules or require Babel.
 // In HorecaBackend/src/lib/db/models, the models are ES modules (import/export).
 // I will just define raw Mongoose schemas here to avoid module system conflicts for this one-off script,
@@ -57,7 +62,7 @@ async function fetchFromTally(collectionType) {
         <DESC>
           <STATICVARIABLES>
             <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-            <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+            <SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY>
           </STATICVARIABLES>
           <TDL>
             <TDLMESSAGE>

@@ -6,6 +6,9 @@ import dbConnect from "@/lib/db/connect";
 import Brand from "@/lib/db/models/brand";
 import Product from "@/lib/db/models/product"; // optional if you later want to include products
 
+const TALLY_CONFIG = {
+  company: process.env.TALLY_SALES_COMPANY || 'Unifoods'
+};
 
 
 // /app/api/brands/route.js (GET only root brands + populate children)
@@ -25,7 +28,7 @@ export async function GET(request) {
   <BODY>
     <DESC>
       <STATICVARIABLES>
-        <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+        <SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
       </STATICVARIABLES>
       <FETCH>NAME,PARENT</FETCH>
@@ -182,7 +185,7 @@ export async function POST(request) {
     <IMPORTDATA>
       <REQUESTDESC>
         <REPORTNAME>All Masters</REPORTNAME>
-        <STATICVARIABLES><SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY></STATICVARIABLES>
+        <STATICVARIABLES><SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY></STATICVARIABLES>
       </REQUESTDESC>
       <REQUESTDATA>
         <TALLYMESSAGE xmlns:UDF="TallyUDF">

@@ -4,6 +4,10 @@ const mongoose = require('mongoose');
 
 const MONGO_URI = 'mongodb://sameergaikwaddelxn_db_user:sameer1234@ac-eearv9b-shard-00-00.beh8ogg.mongodb.net:27017,ac-eearv9b-shard-00-01.beh8ogg.mongodb.net:27017,ac-eearv9b-shard-00-02.beh8ogg.mongodb.net:27017/?ssl=true&replicaSet=atlas-dxxsdl-shard-0&authSource=admin&appName=Cluster0';
 
+const TALLY_CONFIG = {
+  company: process.env.TALLY_SALES_COMPANY || 'Unifoods'
+};
+
 // Schemas
 const BrandSchema = new mongoose.Schema({
   name: String,
@@ -39,7 +43,7 @@ async function fetchFromTally(collectionType, typeName, fetchFields) {
         <DESC>
           <STATICVARIABLES>
             <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-            <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+            <SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY>
           </STATICVARIABLES>
           <TDL>
             <TDLMESSAGE>
@@ -128,12 +132,14 @@ async function run() {
     // Update Product
     const result = await Product.updateOne(
       { tallyId: name },
-      { $set: { 
+      {
+        $set: {
           stockQuantity: stockQty,
           basePrice: basePrice,
           price: price,
           categoryId: categoryId
-      }}
+        }
+      }
     );
 
     if (result.modifiedCount > 0) updateCount++;
@@ -164,7 +170,7 @@ async function run() {
     if (!v) continue;
     let typeName = v.VOUCHERTYPENAME;
     if (typeof typeName === 'object') typeName = typeName['#text'] || "";
-    
+
     if (!typeName || !typeName.toLowerCase().includes("purchase")) continue;
 
     let partyName = v.PARTYLEDGERNAME;
@@ -190,7 +196,7 @@ async function run() {
 
   const mappedProductsCount = Object.keys(productSupplierUpdates).length;
   console.log(`Inferred supplier relationships for ${mappedProductsCount} distinct Products.`);
-  
+
   if (mappedProductsCount > 0) {
     console.log("Updating Products with mapped supplierIds...");
     const bulkOps = Object.keys(productSupplierUpdates).map(productName => ({
