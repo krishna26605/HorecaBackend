@@ -203,6 +203,21 @@ const productSchema = new Schema({
   locationPath: { type: String }
 }, { timestamps: true });
 
+
+// Pre-validate hook to cast string booleans (like "No", "Yes") from legacy data
+productSchema.pre("validate", function (next) {
+  if (typeof this.shipperDryIce === 'string') {
+    this.shipperDryIce = this.shipperDryIce === 'Yes' || this.shipperDryIce === 'true';
+  }
+  if (typeof this.reeferVehicleReq === 'string') {
+    this.reeferVehicleReq = this.reeferVehicleReq === 'Yes' || this.reeferVehicleReq === 'true';
+  }
+  if (typeof this.isColdStorage === 'string') {
+    this.isColdStorage = this.isColdStorage === 'Yes' || this.isColdStorage === 'true';
+  }
+  next();
+});
+
 // Robust pre-save
 productSchema.pre("save", function (next) {
   try {

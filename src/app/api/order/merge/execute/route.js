@@ -93,7 +93,7 @@ export async function POST(request) {
     masterOrder.movDeliveryCharge = movDeliveryCharge;
     masterOrder.shippingCharges = movDeliveryCharge;
     masterOrder.total = total;
-    
+
     if (!masterOrder.metadata) masterOrder.metadata = {};
     masterOrder.metadata.mergedFrom = ordersToCancel.map(o => o.orderNumber);
     masterOrder.metadata.isMerged = true;
@@ -124,10 +124,10 @@ export async function POST(request) {
           return null;
         })
         .filter(Boolean);
-      
+
       if (restockPromises.length) await Promise.all(restockPromises);
     }
-    
+
     // Now deduct stock for the NEW items added to the master order? 
     // Wait, the easiest way to handle stock here is: 
     // We restocked the cancelled orders. The master order originally deducted its own items.
