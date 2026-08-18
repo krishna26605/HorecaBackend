@@ -7,6 +7,9 @@ import { logger } from "@/lib/logger";
 import { sendCustomerWelcomeEmail } from "@/lib/mail";
 
 const JWT_SECRET = process.env.JWT_SECRET;
+const TALLY_CONFIG = {
+  company: process.env.TALLY_SALES_COMPANY || 'Unifoods'
+};
 
 // Helper to geocode address to lat/lng using Nominatim OSM
 async function geocodeAddress(addressStr) {
@@ -78,19 +81,12 @@ function buildCustomerXML(customer) {
     <IMPORTDATA>
       <REQUESTDESC>
         <REPORTNAME>All Masters</REPORTNAME>
-        <STATICVARIABLES><SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY></STATICVARIABLES>
+        <STATICVARIABLES><SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY></STATICVARIABLES>
       </REQUESTDESC>
       <REQUESTDATA>
         <TALLYMESSAGE xmlns:UDF="TallyUDF">
           <LEDGER NAME="${name}" ACTION="Create">
             <NAME>${name}</NAME>
-            <LANGUAGENAME.LIST>
-              <NAME.LIST TYPE="String">
-                <NAME>${name}</NAME>
-                <NAME>${mongoId}</NAME>
-              </NAME.LIST>
-              <LANGUAGECODE> 1033</LANGUAGECODE>
-            </LANGUAGENAME.LIST>
             <PARENT>${escapeXML(customer.customerGroup || "Sundry Debtors")}</PARENT>
             <ISBILLWISEON>Yes</ISBILLWISEON>
             <MAILINGNAME>${mailingName}</MAILINGNAME>
@@ -354,11 +350,11 @@ export async function POST(req) {
       source: body.source || "Self-Registered",
       departmentContacts: Array.isArray(body.departmentContacts)
         ? body.departmentContacts.map(dc => ({
-            name: dc.name?.trim() || null,
-            email: dc.email?.trim() || null,
-            phone: dc.phone?.trim() || null,
-            position: dc.position?.trim() || null
-          }))
+          name: dc.name?.trim() || null,
+          email: dc.email?.trim() || null,
+          phone: dc.phone?.trim() || null,
+          position: dc.position?.trim() || null
+        }))
         : [],
       outlets: (() => {
         // Use the body's outlets array directly if provided (from multi-outlet form),
@@ -436,25 +432,25 @@ export async function POST(req) {
       // contracts — the canonical multi-brand contracts array
       contracts: isContractBased && Array.isArray(contracts) && contracts.length > 0
         ? contracts.map(c => ({
-            brandId: c.brandId || null,
-            brandName: c.brandName || null,
-            contractType: c.contractType || null,
-            documentUrl: c.documentUrl || null,
-            startDate: c.startDate ? new Date(c.startDate) : null,
-            expiryDate: c.expiryDate ? new Date(c.expiryDate) : null,
-            notes: c.notes || null,
-            uploadedAt: new Date()
-          }))
+          brandId: c.brandId || null,
+          brandName: c.brandName || null,
+          contractType: c.contractType || null,
+          documentUrl: c.documentUrl || null,
+          startDate: c.startDate ? new Date(c.startDate) : null,
+          expiryDate: c.expiryDate ? new Date(c.expiryDate) : null,
+          notes: c.notes || null,
+          uploadedAt: new Date()
+        }))
         : [],
       // brandContacts — brand-wise contacts array
       brandContacts: Array.isArray(body.brandContacts)
         ? body.brandContacts.map(bc => ({
-            brandId: bc.brandId || null,
-            brandName: bc.brandName || null,
-            contactName: bc.contactName || null,
-            contactPhone: bc.contactPhone || null,
-            contactEmail: bc.contactEmail || null
-          }))
+          brandId: bc.brandId || null,
+          brandName: bc.brandName || null,
+          contactName: bc.contactName || null,
+          contactPhone: bc.contactPhone || null,
+          contactEmail: bc.contactEmail || null
+        }))
         : [],
       lastLoginAt: new Date()
     });

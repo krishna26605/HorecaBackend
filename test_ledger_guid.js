@@ -1,7 +1,7 @@
 const https = require('https');
 
 const tallyUrl = 'https://yummy-freebee-circular.ngrok-free.dev/';
-const ledgerName = 'CUST001'; 
+const ledgerName = 'CUST001';
 
 const payload = `<ENVELOPE>
   <HEADER>
@@ -14,7 +14,7 @@ const payload = `<ENVELOPE>
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-        <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+        <SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY>
       </STATICVARIABLES>
       <TDL>
         <TDLMESSAGE>

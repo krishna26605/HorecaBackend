@@ -8,6 +8,11 @@ import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import Category from "@/lib/db/models/category";
 import { sendSupplierWelcomeEmail } from "@/lib/mail";
+
+const TALLY_CONFIG = {
+  company: process.env.TALLY_SALES_COMPANY || 'Unifoods'
+};
+
 // cloudinary server-side config - available if you want to process images server-side later
 import cloudinary from "cloudinary";
 cloudinary.v2.config({
@@ -73,26 +78,31 @@ const mapUOM = (uom) => {
 };
 
 // Helper to map mongoose unit to Tally active unit name
+// const mapMongooseUnitToTally = (mongooseUnit) => {
+//   if (!mongooseUnit) return "Nos";
+//   const normalized = String(mongooseUnit).trim().toLowerCase();
+//   switch (normalized) {
+//     case "kg":
+//       return "Kg";
+//     case "g":
+//       return "Kg";
+//     case "liters":
+//     case "ml":
+//       return "Ltr";
+//     case "pcs":
+//     case "box":
+//     case "dozen":
+//     case "pack":
+//     case "ton":
+//     default:
+//       return "Nos";
+//   }
+// };
+
 const mapMongooseUnitToTally = (mongooseUnit) => {
-  if (!mongooseUnit) return "Nos";
-  const normalized = String(mongooseUnit).trim().toLowerCase();
-  switch (normalized) {
-    case "kg":
-      return "Kg";
-    case "g":
-      return "Kg";
-    case "liters":
-    case "ml":
-      return "Ltr";
-    case "pcs":
-    case "box":
-    case "dozen":
-    case "pack":
-    case "ton":
-    default:
-      return "Nos";
-  }
+  return mongooseUnit ? String(mongooseUnit).trim() : "Nos";
 };
+
 
 // Helper to build Supplier XML for Tally
 function buildSupplierXML(supplier) {
@@ -125,19 +135,13 @@ function buildSupplierXML(supplier) {
       <REQUESTDESC>
         <REPORTNAME>All Masters</REPORTNAME>
         <STATICVARIABLES>
-          <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+          <SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY>
         </STATICVARIABLES>
       </REQUESTDESC>
       <REQUESTDATA>
         <TALLYMESSAGE xmlns:UDF="TallyUDF">
           <LEDGER NAME="${name}" ACTION="Create">
             <NAME>${name}</NAME>
-            <LANGUAGENAME.LIST>
-              <NAME.LIST TYPE="String">
-                <NAME>${name}</NAME>
-                <NAME>${mongoId}</NAME>
-              </NAME.LIST>
-            </LANGUAGENAME.LIST>
             <PARENT>Sundry Creditors</PARENT>
             <ISBILLWISEON>Yes</ISBILLWISEON>
             <MAILINGNAME>${mailingName}</MAILINGNAME>
@@ -185,7 +189,7 @@ function buildProductXML(product, stockGroupName, categoryName) {
       <REQUESTDESC>
         <REPORTNAME>All Masters</REPORTNAME>
         <STATICVARIABLES>
-          <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+          <SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY>
         </STATICVARIABLES>
       </REQUESTDESC>
       <REQUESTDATA>
@@ -226,7 +230,7 @@ function buildStockGroupXML(name) {
       <REQUESTDESC>
         <REPORTNAME>All Masters</REPORTNAME>
         <STATICVARIABLES>
-          <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+          <SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY>
         </STATICVARIABLES>
       </REQUESTDESC>
       <REQUESTDATA>
@@ -258,7 +262,7 @@ function buildProductAlterXML(product, stockGroupName, categoryName) {
       <REQUESTDESC>
         <REPORTNAME>All Masters</REPORTNAME>
         <STATICVARIABLES>
-          <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+          <SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY>
         </STATICVARIABLES>
       </REQUESTDESC>
       <REQUESTDATA>
@@ -550,7 +554,7 @@ export async function POST(request) {
                     headers: { 'Content-Type': 'text/xml', 'ngrok-skip-browser-warning': 'true' },
                     body: groupXml
                   });
-                  
+
                   if (groupResponse.ok) {
                     const retryResponse = await fetch(tallyUrl, {
                       method: 'POST',

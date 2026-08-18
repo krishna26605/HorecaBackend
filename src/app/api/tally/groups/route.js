@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+const TALLY_CONFIG = {
+  company: process.env.TALLY_SALES_COMPANY || 'Unifoods'
+};
 
 export async function GET(req) {
   try {
@@ -12,7 +15,7 @@ export async function GET(req) {
   <BODY>
     <DESC>
       <STATICVARIABLES>
-        <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+        <SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
       </STATICVARIABLES>
       <TDL>
@@ -32,7 +35,7 @@ export async function GET(req) {
 
     const response = await fetch(TALLY_ENDPOINT, {
       method: "POST",
-      headers: { 
+      headers: {
         "Content-Type": "application/xml",
         "ngrok-skip-browser-warning": "true"
       },

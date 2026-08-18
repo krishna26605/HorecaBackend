@@ -7,6 +7,11 @@ import Brand from "@/lib/db/models/brand";
 import Category from "@/lib/db/models/category";
 import mongoose from "mongoose";
 
+const TALLY_CONFIG = {
+  company: process.env.TALLY_SALES_COMPANY || 'Unifoods'
+};
+
+
 // cloudinary setup (server-side)
 import cloudinary from "cloudinary";
 cloudinary.v2.config({
@@ -76,19 +81,13 @@ function buildProductXML(product, parentCategoryName, action = "Create") {
       <REQUESTDESC>
         <REPORTNAME>All Masters</REPORTNAME>
         <STATICVARIABLES>
-          <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+          <SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY>
         </STATICVARIABLES>
       </REQUESTDESC>
       <REQUESTDATA>
         <TALLYMESSAGE xmlns:UDF="TallyUDF">
           <STOCKITEM NAME="${name}" ACTION="${escapeXML(action)}">
             <NAME>${name}</NAME>
-            <LANGUAGENAME.LIST>
-              <NAME.LIST TYPE="String">
-                <NAME>${name}</NAME>
-                <NAME>${mongoId}</NAME>
-              </NAME.LIST>
-            </LANGUAGENAME.LIST>
             <PARENT>${parent}</PARENT>
             <BASEUNITS>${unit}</BASEUNITS>
             <GSTAPPLICABLE>&#4; Applicable</GSTAPPLICABLE>
@@ -144,7 +143,7 @@ function buildDeleteLedgerXML(ledgerName) {
       <REQUESTDESC>
         <REPORTNAME>All Masters</REPORTNAME>
         <STATICVARIABLES>
-          <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+          <SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY>
         </STATICVARIABLES>
       </REQUESTDESC>
       <REQUESTDATA>
@@ -171,7 +170,7 @@ function buildDeleteStockItemXML(stockItemName) {
       <REQUESTDESC>
         <REPORTNAME>All Masters</REPORTNAME>
         <STATICVARIABLES>
-          <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+          <SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY>
         </STATICVARIABLES>
       </REQUESTDESC>
       <REQUESTDATA>

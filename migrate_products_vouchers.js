@@ -3,6 +3,9 @@ const { XMLParser } = require('fast-xml-parser');
 const mongoose = require('mongoose');
 
 const MONGO_URI = 'mongodb://sameergaikwaddelxn_db_user:sameer1234@ac-eearv9b-shard-00-00.beh8ogg.mongodb.net:27017,ac-eearv9b-shard-00-01.beh8ogg.mongodb.net:27017,ac-eearv9b-shard-00-02.beh8ogg.mongodb.net:27017/?ssl=true&replicaSet=atlas-dxxsdl-shard-0&authSource=admin&appName=Cluster0';
+const TALLY_CONFIG = {
+  company: process.env.TALLY_SALES_COMPANY || 'Unifoods'
+};
 
 const CustomerSchema = new mongoose.Schema({
   name: String,
@@ -45,7 +48,7 @@ async function fetchFromTally(collectionType, typeName, fetchFields) {
         <DESC>
           <STATICVARIABLES>
             <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-            <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+            <SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY>
           </STATICVARIABLES>
           <TDL>
             <TDLMESSAGE>
@@ -140,12 +143,12 @@ async function run() {
   }
 
   const ordersToInsert = [];
-  
+
   for (let v of vouchers) {
     if (!v) continue;
     let typeName = v.VOUCHERTYPENAME;
     if (typeof typeName === 'object') typeName = typeName['#text'] || "";
-    
+
     // As requested: "use only now sales voucher"
     if (!typeName || !typeName.toLowerCase().includes("sales")) continue;
 
@@ -162,8 +165,8 @@ async function run() {
     if (typeof vchDate === 'object') vchDate = vchDate['#text'];
     let placedAt = new Date();
     if (vchDate && typeof vchDate === 'string' && vchDate.length >= 8) {
-       const y = vchDate.substring(0,4), m = vchDate.substring(4,6), d = vchDate.substring(6,8);
-       placedAt = new Date(`${y}-${m}-${d}`);
+      const y = vchDate.substring(0, 4), m = vchDate.substring(4, 6), d = vchDate.substring(6, 8);
+      placedAt = new Date(`${y}-${m}-${d}`);
     }
 
     let inventory = v['ALLINVENTORYENTRIES.LIST'];
@@ -177,7 +180,7 @@ async function run() {
       if (!inv) continue;
       let itemName = inv.STOCKITEMNAME;
       if (typeof itemName === 'object') itemName = itemName['#text'] || "";
-      
+
       const productId = productMap[itemName];
       if (!productId) continue;
 
@@ -206,7 +209,7 @@ async function run() {
     if (orderItems.length === 0) continue;
 
     ordersToInsert.push({
-      orderNumber: vchNumber + "-" + Math.floor(Math.random()*1000), // Ensure unique
+      orderNumber: vchNumber + "-" + Math.floor(Math.random() * 1000), // Ensure unique
       user: customerId,
       userModel: "Customer",
       items: orderItems,
@@ -219,7 +222,7 @@ async function run() {
   }
 
   console.log(`Parsed ${ordersToInsert.length} Sales Vouchers.`);
-  
+
   if (ordersToInsert.length > 0) {
     console.log("Inserting Vouchers into MongoDB (bypassing Mongoose hooks)...");
     // insertMany avoids firing the 'save' hook which sends notifications!

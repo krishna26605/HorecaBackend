@@ -3,6 +3,9 @@ import dbConnect from "@/lib/db/connect";
 import PurchaseOrder from "@/lib/db/models/inventory/PurchaseOrder";
 import Product from "@/lib/db/models/product";
 import { logger } from "@/lib/logger";
+const TALLY_CONFIG = {
+  company: process.env.TALLY_SALES_COMPANY || 'Unifoods'
+};
 
 // Helper to escape XML characters
 const escapeXML = (str) => {
@@ -71,7 +74,7 @@ function parseTallyResponse(xmlString) {
 
   const createdMatch = xmlString.match(/<CREATED>(\d+)<\/CREATED>/);
   const alteredMatch = xmlString.match(/<ALTERED>(\d+)<\/ALTERED>/);
-  
+
   const createdCount = createdMatch ? parseInt(createdMatch[1], 10) : 0;
   const alteredCount = alteredMatch ? parseInt(alteredMatch[1], 10) : 0;
 
@@ -88,29 +91,44 @@ function parseTallyResponse(xmlString) {
 }
 
 // Function to construct the Tally Voucher XML
-function buildTallyPOVoucherXML(po, productMap) {
+// Function to construct the Tally Voucher XML
+async function buildTallyPOVoucherXML(po, productMap) {
   const dateStr = formatTallyDate(po.createdAt || new Date());
   const supplierName = escapeXML(po.supplier?.name || "Unknown Vendor");
   const poNumber = escapeXML(po.poNumber);
   const mongoId = escapeXML(po._id.toString());
-  
+
+  // Resolve active godown name dynamically from database
+  let godownName = "Main Location";
+  try {
+    const WarehouseLocation = mongoose.models.WarehouseLocation || (await import("@/lib/db/models/warehouse/WarehouseLocation")).default;
+    const activeWarehouse = await WarehouseLocation.findOne({ type: "WAREHOUSE", status: "active" }).lean();
+    if (activeWarehouse) {
+      godownName = activeWarehouse.name;
+    }
+  } catch (e) {
+    console.warn("Failed to fetch active godown:", e);
+  }
+
   let computedTotal = 0;
-  
+
   const itemsXml = po.items.map(item => {
     const itemName = escapeXML(item.productName);
     const qty = parseFloat(item.quantity) || parseFloat(item.orderedQty) || 0;
     const unitPrice = parseFloat(item.unitPrice) || 0;
     const itemTotal = qty * unitPrice;
     computedTotal += itemTotal;
-    
+
     // Resolve unit from database Product document
     const productDoc = productMap[item.productId];
     const tallyUnit = escapeXML(mapMongooseUnitToTally(productDoc?.unit || 'pcs'));
-    
+
     const qtyStr = `${qty} ${tallyUnit}`;
     const rateStr = `${unitPrice}/${tallyUnit}`;
-    const amountStr = (-itemTotal).toFixed(2);
-    
+    // const amountStr = (-itemTotal).toFixed(2);
+    const amountStr = itemTotal.toFixed(2);
+
+
     return `<ALLINVENTORYENTRIES.LIST>
        <STOCKITEMNAME>${itemName}</STOCKITEMNAME>
        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
@@ -119,25 +137,18 @@ function buildTallyPOVoucherXML(po, productMap) {
        <ACTUALQTY>${qtyStr}</ACTUALQTY>
        <BILLEDQTY>${qtyStr}</BILLEDQTY>
 
-       <BATCHALLOCATIONS.LIST>
-        <GODOWNNAME>Unifoods Warehouse</GODOWNNAME>
+      <BATCHALLOCATIONS.LIST>
+        <GODOWNNAME>${escapeXML(godownName)}</GODOWNNAME>
         <BATCHNAME>Batch1</BATCHNAME>
-        <DESTINATIONGODOWNNAME>Unifoods Warehouse</DESTINATIONGODOWNNAME>
-        <ORDERNO>${poNumber}</ORDERNO>
-        <TRACKINGNUMBER>1</TRACKINGNUMBER>
         <AMOUNT>${amountStr}</AMOUNT>
         <ACTUALQTY>${qtyStr}</ACTUALQTY>
         <BILLEDQTY>${qtyStr}</BILLEDQTY>
-       </BATCHALLOCATIONS.LIST>
+      </BATCHALLOCATIONS.LIST>
 
-       <ACCOUNTINGALLOCATIONS.LIST>
-        <LEDGERNAME>Purchase</LEDGERNAME>
-        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
-        <AMOUNT>${amountStr}</AMOUNT>
-       </ACCOUNTINGALLOCATIONS.LIST>
       </ALLINVENTORYENTRIES.LIST>`;
   }).join("\n");
-  
+
+
   const totalAmountStr = computedTotal.toFixed(2);
 
   return `<ENVELOPE>
@@ -147,42 +158,31 @@ function buildTallyPOVoucherXML(po, productMap) {
    <REQUESTDESC>
     <REPORTNAME>Vouchers</REPORTNAME>
     <STATICVARIABLES>
-     <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+     <SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY>
     </STATICVARIABLES>
    </REQUESTDESC>
    <REQUESTDATA>
     <TALLYMESSAGE xmlns:UDF="TallyUDF">
-     <VOUCHER VCHTYPE="Purchase" ACTION="Create" OBJVIEW="Invoice Voucher View">
+     <VOUCHER VCHTYPE="Purchase Order" ACTION="Create" OBJVIEW="Inventory Voucher View">
       <DATE>${dateStr}</DATE>
       <VCHSTATUSDATE>${dateStr}</VCHSTATUSDATE>
       <EFFECTIVEDATE>${dateStr}</EFFECTIVEDATE>
-      <VOUCHERTYPENAME>Purchase</VOUCHERTYPENAME>
+      <VOUCHERTYPENAME>Purchase Order</VOUCHERTYPENAME>
+      <VOUCHERNUMBER>${poNumber}</VOUCHERNUMBER>
       <PARTYLEDGERNAME>${supplierName}</PARTYLEDGERNAME>
       <PARTYNAME>${supplierName}</PARTYNAME>
-      <PERSISTEDVIEW>Invoice Voucher View</PERSISTEDVIEW>
-      <VCHENTRYMODE>Item Invoice</VCHENTRYMODE>
+      <PERSISTEDVIEW>Inventory Voucher View</PERSISTEDVIEW>
       <DIFFACTUALQTY>Yes</DIFFACTUALQTY>
-      <ISINVOICE>Yes</ISINVOICE>
 
       ${itemsXml}
-
-      <LEDGERENTRIES.LIST>
-       <LEDGERNAME>${supplierName}</LEDGERNAME>
-       <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
-       <ISPARTYLEDGER>Yes</ISPARTYLEDGER>
-       <AMOUNT>${totalAmountStr}</AMOUNT>
-       <BILLALLOCATIONS.LIST>
-        <NAME>${mongoId}</NAME>
-        <BILLTYPE>New Ref</BILLTYPE>
-        <AMOUNT>${totalAmountStr}</AMOUNT>
-       </BILLALLOCATIONS.LIST>
-      </LEDGERENTRIES.LIST>
      </VOUCHER>
     </TALLYMESSAGE>
    </REQUESTDATA>
   </IMPORTDATA>
  </BODY>
 </ENVELOPE>`;
+
+
 }
 
 // GET - List purchase orders
@@ -271,8 +271,9 @@ export async function POST(request) {
 
     try {
       const tallyUrl = process.env.TALLY_URL || 'https://yummy-freebee-circular.ngrok-free.dev';
-      const xmlPayload = buildTallyPOVoucherXML(po, productMap);
-      
+      const xmlPayload = await buildTallyPOVoucherXML(po, productMap);
+
+
       console.log(`[Tally Sync] Syncing PO "${po.poNumber}" to Tally at ${tallyUrl}`);
       const tallyResponse = await fetch(tallyUrl, {
         method: 'POST',

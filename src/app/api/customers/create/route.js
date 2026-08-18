@@ -3,6 +3,9 @@ import bcrypt from "bcryptjs";
 import dbConnect from "@/lib/db/connect";
 import Customer from "@/lib/db/models/customer";
 import { sendCustomerWelcomeEmail } from "@/lib/mail";
+const TALLY_CONFIG = {
+  company: process.env.TALLY_SALES_COMPANY || 'Unifoods'
+};
 
 // Helper to geocode address to lat/lng using Nominatim OSM
 async function geocodeAddress(addressStr) {
@@ -50,15 +53,15 @@ function buildCustomerXML(customer) {
   const name = escapeXML(customer.name || customer.businessName || customer.phone || "Unknown Customer");
   const mongoId = escapeXML(customer._id.toString());
   const mailingName = escapeXML(customer.businessName || customer.name || customer.phone || "Unknown Customer");
-  
+
   const address = escapeXML(customer.address || "");
   const city = escapeXML(customer.city || "");
   const state = escapeXML(customer.state || "Maharashtra");
   const pincode = escapeXML(customer.pincode || "");
-  
+
   const phone = escapeXML(customer.phone || "");
   const email = escapeXML(customer.email || "");
-  const gstNumber = escapeXML(customer.gstNumber || ""); 
+  const gstNumber = escapeXML(customer.gstNumber || "");
 
   let addressXml = "";
   if (address || city) {
@@ -74,19 +77,12 @@ function buildCustomerXML(customer) {
     <IMPORTDATA>
       <REQUESTDESC>
         <REPORTNAME>All Masters</REPORTNAME>
-        <STATICVARIABLES><SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY></STATICVARIABLES>
+        <STATICVARIABLES><SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY></STATICVARIABLES>
       </REQUESTDESC>
       <REQUESTDATA>
         <TALLYMESSAGE xmlns:UDF="TallyUDF">
           <LEDGER NAME="${name}" ACTION="Create">
             <NAME>${name}</NAME>
-            <LANGUAGENAME.LIST>
-              <NAME.LIST TYPE="String">
-                <NAME>${name}</NAME>
-                <NAME>${mongoId}</NAME>
-              </NAME.LIST>
-              <LANGUAGECODE> 1033</LANGUAGECODE>
-            </LANGUAGENAME.LIST>
             <PARENT>${escapeXML(customer.customerGroup || "Sundry Debtors")}</PARENT>
             <ISBILLWISEON>Yes</ISBILLWISEON>
             <MAILINGNAME>${mailingName}</MAILINGNAME>
@@ -113,7 +109,7 @@ function parseTallyResponse(xmlString) {
 
   const createdMatch = xmlString.match(/<CREATED>(\d+)<\/CREATED>/);
   const alteredMatch = xmlString.match(/<ALTERED>(\d+)<\/ALTERED>/);
-  
+
   const createdCount = createdMatch ? parseInt(createdMatch[1], 10) : 0;
   const alteredCount = alteredMatch ? parseInt(alteredMatch[1], 10) : 0;
 
@@ -155,16 +151,16 @@ export async function POST(request) {
     // Normalize: strip non-digits
     const numericPhone = phone.replace(/\D/g, "");
     // Standardize: ensure +91 for 10-digit Indian numbers
-    const standardizedPhone = (numericPhone.length === 10) ? `+91${numericPhone}` : 
-                              (numericPhone.length === 12 && numericPhone.startsWith("91")) ? `+${numericPhone}` :
-                              phone.trim();
+    const standardizedPhone = (numericPhone.length === 10) ? `+91${numericPhone}` :
+      (numericPhone.length === 12 && numericPhone.startsWith("91")) ? `+${numericPhone}` :
+        phone.trim();
 
     // Look for variations to match existing users
     const variations = [phone.trim(), standardizedPhone, numericPhone];
     if (numericPhone.length === 12 && numericPhone.startsWith("91")) {
-        variations.push(numericPhone.slice(2)); // handle without 91
+      variations.push(numericPhone.slice(2)); // handle without 91
     } else if (numericPhone.length === 10) {
-        variations.push("91" + numericPhone); // handle with 91
+      variations.push("91" + numericPhone); // handle with 91
     }
 
     // Does customer already exist?
@@ -314,11 +310,11 @@ export async function POST(request) {
       source: body.source || "SCM Onboarding",
       departmentContacts: Array.isArray(body.departmentContacts)
         ? body.departmentContacts.map(dc => ({
-            name: dc.name?.trim() || null,
-            email: dc.email?.trim() || null,
-            phone: dc.phone?.trim() || null,
-            position: dc.position?.trim() || null
-          }))
+          name: dc.name?.trim() || null,
+          email: dc.email?.trim() || null,
+          phone: dc.phone?.trim() || null,
+          position: dc.position?.trim() || null
+        }))
         : [],
       outlets: formattedOutlets,
       locations: [
@@ -423,7 +419,7 @@ export async function POST(request) {
     if (hasMultipleOutlets && Array.isArray(formattedOutlets)) {
       for (let i = 0; i < formattedOutlets.length; i++) {
         const o = formattedOutlets[i];
-        
+
         let outletRawPassword = o.password ? o.password.trim() : "";
         if (!outletRawPassword) {
           outletRawPassword = generateSystemPassword();
@@ -526,7 +522,7 @@ export async function POST(request) {
         if (parsed.success) {
           tallyCustomerSynced = true;
           console.log(`[Tally Sync] Customer synced successfully to Tally.`);
-          
+
           // Fetch the generated GUID from Tally and store it
           try {
             const guidPayload = `<ENVELOPE>
@@ -557,13 +553,13 @@ export async function POST(request) {
                 </DESC>
               </BODY>
             </ENVELOPE>`;
-            
+
             const guidResponse = await fetch(tallyUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'text/xml' },
               body: guidPayload
             });
-            
+
             if (guidResponse.ok) {
               const guidXml = await guidResponse.text();
               const guidMatch = guidXml.match(/<GUID>([^<]+)<\/GUID>/);

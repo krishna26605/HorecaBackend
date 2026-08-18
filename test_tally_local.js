@@ -11,7 +11,7 @@ const payload = `<ENVELOPE>
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-        <SVCURRENTCOMPANY>Unifoods</SVCURRENTCOMPANY>
+        <SVCURRENTCOMPANY>${TALLY_CONFIG.company}</SVCURRENTCOMPANY>
       </STATICVARIABLES>
       <TDL>
         <TDLMESSAGE>
@@ -41,7 +41,7 @@ const req = http.request('http://localhost:9000', {
 });
 
 req.on('error', (err) => {
-    console.error("Failed to connect to Tally on localhost:9000:", err.message);
+  console.error("Failed to connect to Tally on localhost:9000:", err.message);
 });
 req.write(payload);
 req.end();
