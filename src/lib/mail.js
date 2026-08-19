@@ -1,5 +1,17 @@
 import nodemailer from "nodemailer";
 import jwt from "jsonwebtoken";
+import dbConnect from "@/lib/db/connect";
+import Setting from "@/lib/db/models/Setting";
+
+const replacePlaceholders = (templateStr, variables) => {
+  if (!templateStr) return "";
+  let result = templateStr;
+  for (const [key, value] of Object.entries(variables)) {
+    const regex = new RegExp(`{{${key}}}`, "g");
+    result = result.replace(regex, value || "");
+  }
+  return result;
+};
 
 const getTransporter = () => {
   const user = process.env.EMAIL_USER || process.env.SMTP_USER || "gaikwadsameer422@gmail.com";
@@ -414,11 +426,62 @@ Unifoods Supply Chain Private Limited
 support@unifoods.in | www.unifoods.in
   `.trim();
 
+  let finalSubject = `Welcome to Unifoods – Customer Onboarding, Account Details & Acceptance`;
+  let finalHtml = html;
+  let finalText = text;
+
+  try {
+    await dbConnect();
+    const customTemplateSetting = await Setting.findOne({ key: "customer_welcome_email_template" });
+    if (customTemplateSetting && customTemplateSetting.value) {
+      const template = customTemplateSetting.value;
+      const variables = {
+        entityDisplayName, businessName, name, username, password, email, phone, addressText,
+        outletsText, outletsHtml, fssaiDetailsText, fssaiDetailsHtml, gstDisplayText,
+        orderContact, goodsContact, accountsContact, headAccountsContact,
+        creditSectionHtml, changePasswordSectionHtml
+      };
+      
+      if (template.subject) finalSubject = replacePlaceholders(template.subject, variables);
+      if (template.bodyText) {
+        finalText = replacePlaceholders(template.bodyText, variables);
+        finalHtml = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <title>${finalSubject}</title>
+          </head>
+          <body style="font-family: Arial, Helvetica, sans-serif; background-color: #f4f6f8; margin: 0; padding: 20px;">
+            <div style="max-width: 680px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;">
+              
+              <!-- Header -->
+              <div style="background-color: #d97706; padding: 25px 30px; text-align: center;">
+                <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: bold;">Welcome to Unifoods!</h1>
+              </div>
+
+              <!-- Body -->
+              <div style="padding: 30px; color: #1e293b; line-height: 1.6; font-size: 14px; white-space: pre-wrap;">${finalText}</div>
+
+              <!-- Footer -->
+              <div style="background-color: #f1f5f9; padding: 15px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0;">
+                <p style="margin: 0;">© ${new Date().getFullYear()} Unifoods Supply Chain. All rights reserved.</p>
+              </div>
+            </div>
+          </body>
+          </html>
+        `;
+      }
+    }
+  } catch (err) {
+    console.error("Error fetching custom customer welcome email template:", err);
+  }
+
   return await sendEmail({
     to: email,
-    subject: `Welcome to Unifoods – Customer Onboarding, Account Details & Acceptance`,
-    text,
-    html,
+    subject: finalSubject,
+    text: finalText,
+    html: finalHtml,
   });
 };
 
@@ -539,11 +602,59 @@ If you have any questions or need assistance, please feel free to reply to this 
 © ${new Date().getFullYear()} Unifoods Supply Chain. All rights reserved.
   `.trim();
 
+  let finalSubject = `Welcome to Unifoods - Your Supplier Account Credentials`;
+  let finalHtml = html;
+  let finalText = text;
+
+  try {
+    await dbConnect();
+    const customTemplateSetting = await Setting.findOne({ key: "supplier_welcome_email_template" });
+    if (customTemplateSetting && customTemplateSetting.value) {
+      const template = customTemplateSetting.value;
+      const variables = {
+        name, businessName, email, password, gstNumber, gstSectionHtml, isUrg
+      };
+      
+      if (template.subject) finalSubject = replacePlaceholders(template.subject, variables);
+      if (template.bodyText) {
+        finalText = replacePlaceholders(template.bodyText, variables);
+        finalHtml = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <title>${finalSubject}</title>
+          </head>
+          <body style="font-family: Arial, Helvetica, sans-serif; background-color: #f4f6f8; margin: 0; padding: 20px;">
+            <div style="max-width: 680px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;">
+              
+              <!-- Header -->
+              <div style="background-color: #d97706; padding: 25px 30px; text-align: center;">
+                <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: bold;">Welcome to Unifoods!</h1>
+              </div>
+
+              <!-- Body -->
+              <div style="padding: 30px; color: #1e293b; line-height: 1.6; font-size: 14px; white-space: pre-wrap;">${finalText}</div>
+
+              <!-- Footer -->
+              <div style="background-color: #f1f5f9; padding: 15px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0;">
+                <p style="margin: 0;">© ${new Date().getFullYear()} Unifoods Supply Chain. All rights reserved.</p>
+              </div>
+            </div>
+          </body>
+          </html>
+        `;
+      }
+    }
+  } catch (err) {
+    console.error("Error fetching custom supplier welcome email template:", err);
+  }
+
   return await sendEmail({
     to: email,
-    subject: `Welcome to Unifoods - Your Supplier Account Credentials`,
-    text,
-    html,
+    subject: finalSubject,
+    text: finalText,
+    html: finalHtml,
   });
 };
 
