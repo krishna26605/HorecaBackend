@@ -5,12 +5,12 @@ export const metadata = {
   title: 'SupplyChainPro',
   description: 'Business Management Suite',
 };
-
+//sampple
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <SessionProvider>
-      <body>{children}</body>
+        <body>{children}</body>
       </SessionProvider>
     </html>
   );
