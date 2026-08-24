@@ -239,6 +239,17 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
+
+    // Sanitize optional ObjectId fields to prevent Mongoose cast errors
+    const fieldsToClean = ['categoryId', 'subcategoryId', 'brandId', 'stockGroupId', 'locationId'];
+    fieldsToClean.forEach(field => {
+      if (body[field] !== undefined && body[field] !== null) {
+        if (!isValidObjectIdString(String(body[field]))) {
+          delete body[field];
+        }
+      }
+    });
+
     console.log(`[POST PRODUCT] Incoming Category Prices:`, body.categoryPrices);
 
     // Basic server-side validation

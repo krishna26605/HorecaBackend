@@ -175,6 +175,16 @@ export async function PUT(request, { params }) {
     const body = await request.json();
     if (body.unit) body.unit = mapUOM(body.unit);
 
+    // Sanitize optional ObjectId fields to prevent Mongoose cast errors
+    const fieldsToClean = ['categoryId', 'subcategoryId', 'brandId', 'stockGroupId', 'locationId'];
+    fieldsToClean.forEach(field => {
+      if (body[field] !== undefined && body[field] !== null) {
+        if (!isValidObjectIdString(String(body[field]))) {
+          delete body[field];
+        }
+      }
+    });
+
     const updated = await Product.findByIdAndUpdate(id, body, {
       new: true,
       overwrite: true,
@@ -227,6 +237,17 @@ export async function PATCH(request, { params }) {
 
     const body = await request.json();
     if (body.unit) body.unit = mapUOM(body.unit);
+
+    // Sanitize optional ObjectId fields to prevent Mongoose cast errors
+    const fieldsToClean = ['categoryId', 'subcategoryId', 'brandId', 'stockGroupId', 'locationId'];
+    fieldsToClean.forEach(field => {
+      if (body[field] !== undefined && body[field] !== null) {
+        if (!isValidObjectIdString(String(body[field]))) {
+          delete body[field];
+        }
+      }
+    });
+
     console.log(`[PATCH PRODUCT ${id}] Incoming Body:`, JSON.stringify(body, null, 2));
 
     const product = await Product.findById(id);
